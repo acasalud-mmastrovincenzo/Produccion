@@ -1,0 +1,19 @@
+Colores_ACA:
+LOAD Nom_Variable, 
+     [Color RGB] AS Color_RGB
+FROM
+[D:\Qlikview\DEV\ADG_FILES\Paleta de Colores ACA.xls]
+(biff, embedded labels, table is Sheet1$);
+
+
+LET vCantReg = NoOfRows('Colores_ACA');
+
+
+FOR i = 0 to $(vCantReg)-1	
+	
+	LET vNomVar = Peek('Nom_Variable', $(i));
+  	LET vColor = Peek('Color_RGB', $(i));
+  	
+  	LET $(vNomVar) = $(vColor);	  
+		
+NEXT i;

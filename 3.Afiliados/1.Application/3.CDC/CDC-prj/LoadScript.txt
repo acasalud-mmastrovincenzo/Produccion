@@ -1,0 +1,768 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\1.Application'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Shared', 'TransformPath;ColorSchemePath');
+
+
+// Levanto la Paleta de Colores de ACA Salud.
+$(Include=$(vG.SharedColorSchemePath)\colores_aca.txt);
+///$tab SA
+
+//Section Access;
+//LOAD * INLINE [
+//    ACCESS, USERID, PASSWORD
+//    ADMIN, admin, 2556
+//];
+//
+//Section Application;
+
+///$tab Versionado
+Versionado_tmp:
+NoConcatenate
+LOAD 
+  	 Fecha 				 AS FechaVersion, 
+     Desarrollador, 
+     Version, 
+     Modificaciones
+FROM
+[$(vG.CustomPath)\Historial de Versiones CDC.xlsx]
+(ooxml, embedded labels, table is Hoja1);
+
+
+Versionado:
+NoConcatenate
+LOAD * Resident Versionado_tmp Order by FechaVersion;
+
+LET vversion = Peek('Version');
+
+DROP Table Versionado_tmp;
+///$tab Dimensiones Calculadas
+DimensionesCalculadas:
+NoConcatenate
+LOAD 
+	 ID_Dimension,
+	 '.'&ID_Dimension&'.'			as ID_DimensionFiltro%, 
+     EtiquetaDimension, 
+     Dimension
+FROM
+[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas CDC.xlsx]
+(ooxml, embedded labels, table is Dimensiones)
+Where Visualizar = 'SI';
+///$tab Metricas
+Metricas:
+NoConcatenate
+LOAD 
+	 ID_Expresion, 
+     EtiquetaSimpleExpresion, 
+     Expresion,
+     VisualizarReporte 			as VisualizarReporte%
+//   Comparativo, 
+//   Visualizar
+FROM
+[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas CDC.xlsx]
+(ooxml, embedded labels, table is Expresiones)
+Where Visualizar = 'SI' and Comparativo = 'NO'
+;
+
+//MetricasVsPeriodoAnterior:
+//NoConcatenate
+//LOAD ID_Expresion					as ID_ExpresionVsPeriodoAnterior, 
+//     EtiquetaSimpleExpresion		as EtiquetaSimpleExpresionVsPeriodoAnterior 
+////   Expresion 
+////   Comparativo, 
+////   Visualizar
+//FROM
+//[..\CFG\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is Expresiones)
+//Where Visualizar = 'SI' and vsPeriodoAnterior = 'SI'
+//;
+//
+//MetricasComparativo:
+//NoConcatenate
+//LOAD ID_Expresion						as ID_ExpresionComparativo, 
+//     EtiquetaSimpleExpresion			as EtiquetaSimpleExpresionComparativo, 
+//     Expresion							as ExpresionComparativo
+////   Comparativo, 
+////   Visualizar
+//FROM
+//[..\CFG\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is Expresiones)
+//Where Comparativo = 'SI' and Visualizar = 'SI';
+//
+//MetricasEdad:
+//LOAD Distinct 
+//	Dimension						as MetricaEdad%
+//FROM
+//[..\CFG\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is ReporteDeDimensiones)
+//where VisualizarFiltroEdad = 'SI'
+//;
+//
+DimensionesDetalle:
+LOAD Distinct 
+	ID_Dimension					as ID_DimensionesDetalle,
+	'.'&ID_Dimension&'.'			as ID_DimensionesDetalleFiltro%,
+	Dimension						as DimensionesDetalle%
+FROM
+[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas CDC.xlsx]
+(ooxml, embedded labels, table is ReporteDeDimensiones)
+where VisualizarReportesDinamico = 'SI';
+//
+//MetricasReportes:
+//LOAD Distinct 						
+//	ID_Expresion					as ID_ExpresionMetricaReporte, 
+//    EtiquetaSimpleExpresion			as EtiquetaSimpleExpresionMetricaReporte
+//FROM
+//[..\CFG\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is Expresiones)
+//where Visualizar = 'SI' and VisualizarReporte = 'SI'
+//;
+///$tab Llamadas_0810
+Llamadas_0810:
+NoConcatenate
+LOAD 
+	 ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad,
+//     SubField(Entidad,'/',1)						AS %ID_GrupoFamiliar, 
+	 ID_Afiliado									AS %ID_Afiliado,
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     if(ID_TipoSolicitud='CRR_BAJA' 
+     or ID_TipoSolicitud='CRR_CAMPAÑA' 
+     or ID_TipoSolicitud='CRR_CASOS_DERIVADOS' 
+     or ID_TipoSolicitud='CRR_CREDENCIALES' 
+     or ID_TipoSolicitud='CRR_SOCIO_FALLECIDO' 
+     or ID_TipoSolicitud='CRR_GESTION_DEUDA','CRR','0810')	AS CDC_Sector,
+     Retenido
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+//     Dpto_TipoSolicitud
+FROM [$(vG.TransformPath)\STG_AFILIADOS_05_LLAMADAS_0810.qvd] (qvd)
+where Fecha_Solicitud >= '01/01/2017' and ID_TipoSolicitud <> 'CRR_NOTIFICACION_MAIL' and ID_TipoSolicitud<>'CRR_NOTIFICACION_SMS' and Tipo_Entidad ='AFILIADO';
+
+
+Concatenate(Llamadas_0810)
+LOAD 
+	 ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad,
+     Entidad										AS %ID_Agencia, 
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     if(ID_TipoSolicitud='CRR_BAJA' 
+     or ID_TipoSolicitud='CRR_CAMPAÑA' 
+     or ID_TipoSolicitud='CRR_CASOS_DERIVADOS' 
+     or ID_TipoSolicitud='CRR_CREDENCIALES' 
+     or ID_TipoSolicitud='CRR_SOCIO_FALLECIDO' 
+     or ID_TipoSolicitud='CRR_GESTION_DEUDA','CRR','0810')	AS CDC_Sector,
+     Retenido
+//     Flag_Reingreso, 
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+//     Dpto_TipoSolicitud
+FROM [$(vG.TransformPath)\STG_AFILIADOS_05_LLAMADAS_0810.qvd] (qvd)
+where Fecha_Solicitud >= '01/01/2017' and ID_TipoSolicitud <> 'CRR_NOTIFICACION_MAIL' and ID_TipoSolicitud<>'CRR_NOTIFICACION_SMS' and Tipo_Entidad ='DELEGACION';
+
+
+Concatenate(Llamadas_0810)
+LOAD 
+	 ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad,
+     Entidad										AS EmpresaID, 
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     if(ID_TipoSolicitud='CRR_BAJA' 
+     or ID_TipoSolicitud='CRR_CAMPAÑA' 
+     or ID_TipoSolicitud='CRR_CASOS_DERIVADOS' 
+     or ID_TipoSolicitud='CRR_CREDENCIALES' 
+     or ID_TipoSolicitud='CRR_SOCIO_FALLECIDO' 
+     or ID_TipoSolicitud='CRR_GESTION_DEUDA','CRR','0810')	AS CDC_Sector,
+     Retenido
+//     Flag_Reingreso, 
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+//     Dpto_TipoSolicitud
+FROM [$(vG.TransformPath)\STG_AFILIADOS_05_LLAMADAS_0810.qvd] (qvd)
+where Fecha_Solicitud >= '01/01/2017' and ID_TipoSolicitud <> 'CRR_NOTIFICACION_MAIL' and ID_TipoSolicitud<>'CRR_NOTIFICACION_SMS' and Tipo_Entidad ='EMPRESA';
+
+
+Concatenate(Llamadas_0810)
+LOAD 
+	 ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad,
+     Entidad								AS %ID_Proveedor,  
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     if(ID_TipoSolicitud='CRR_BAJA' 
+     or ID_TipoSolicitud='CRR_CAMPAÑA' 
+     or ID_TipoSolicitud='CRR_CASOS_DERIVADOS' 
+     or ID_TipoSolicitud='CRR_CREDENCIALES' 
+     or ID_TipoSolicitud='CRR_SOCIO_FALLECIDO' 
+     or ID_TipoSolicitud='CRR_GESTION_DEUDA','CRR','0810')	AS CDC_Sector,
+     Retenido 
+//     Flag_Reingreso, 
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+//     Dpto_TipoSolicitud
+FROM [$(vG.TransformPath)\STG_AFILIADOS_05_LLAMADAS_0810.qvd] (qvd)
+where Fecha_Solicitud >= '01/01/2017' and ID_TipoSolicitud <> 'CRR_NOTIFICACION_MAIL' and ID_TipoSolicitud<>'CRR_NOTIFICACION_SMS' and Tipo_Entidad ='PROVEEDOR';
+
+
+Concatenate(Llamadas_0810)
+LOAD 
+	 ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad,
+     Entidad								AS %ID_Proveedor, 
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     if(ID_TipoSolicitud='CRR_BAJA' 
+     or ID_TipoSolicitud='CRR_CAMPAÑA' 
+     or ID_TipoSolicitud='CRR_CASOS_DERIVADOS' 
+     or ID_TipoSolicitud='CRR_CREDENCIALES' 
+     or ID_TipoSolicitud='CRR_SOCIO_FALLECIDO' 
+     or ID_TipoSolicitud='CRR_GESTION_DEUDA','CRR','0810')	AS CDC_Sector,
+     Retenido
+//     Flag_Reingreso, 
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+//     Dpto_TipoSolicitud
+FROM [$(vG.TransformPath)\STG_AFILIADOS_05_LLAMADAS_0810.qvd] (qvd)
+where Fecha_Solicitud >= '01/01/2017' and ID_TipoSolicitud <> 'CRR_NOTIFICACION_MAIL' and ID_TipoSolicitud<>'CRR_NOTIFICACION_SMS' and Tipo_Entidad ='GRUPOS AFINIDAD';
+
+
+Concatenate(Llamadas_0810)
+LOAD 
+	 ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad,
+     Entidad									AS %ID_Efector, 
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     if(ID_TipoSolicitud='CRR_BAJA' 
+     or ID_TipoSolicitud='CRR_CAMPAÑA' 
+     or ID_TipoSolicitud='CRR_CASOS_DERIVADOS' 
+     or ID_TipoSolicitud='CRR_CREDENCIALES' 
+     or ID_TipoSolicitud='CRR_SOCIO_FALLECIDO' 
+     or ID_TipoSolicitud='CRR_GESTION_DEUDA','CRR','0810')	AS CDC_Sector,
+     Retenido
+//     Flag_Reingreso, 
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+//     Dpto_TipoSolicitud
+FROM [$(vG.TransformPath)\STG_AFILIADOS_05_LLAMADAS_0810.qvd] (qvd)
+where Fecha_Solicitud >= '01/01/2017' and ID_TipoSolicitud <> 'CRR_NOTIFICACION_MAIL' and ID_TipoSolicitud<>'CRR_NOTIFICACION_SMS' and Tipo_Entidad ='PRESTADOR';
+
+Concatenate(Llamadas_0810)
+LOAD 
+	 ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad,
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     if(ID_TipoSolicitud='CRR_BAJA' 
+     or ID_TipoSolicitud='CRR_CAMPAÑA' 
+     or ID_TipoSolicitud='CRR_CASOS_DERIVADOS' 
+     or ID_TipoSolicitud='CRR_CREDENCIALES' 
+     or ID_TipoSolicitud='CRR_SOCIO_FALLECIDO' 
+     or ID_TipoSolicitud='CRR_GESTION_DEUDA','CRR','0810')	AS CDC_Sector,
+     Retenido
+//     Flag_Reingreso, 
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+//     Dpto_TipoSolicitud
+FROM [$(vG.TransformPath)\STG_AFILIADOS_05_LLAMADAS_0810.qvd] (qvd)
+where Fecha_Solicitud >= '01/01/2017' and ID_TipoSolicitud <> 'CRR_NOTIFICACION_MAIL' and ID_TipoSolicitud<>'CRR_NOTIFICACION_SMS' and Tipo_Entidad ='SUPERINTENDENCIA';
+
+
+Min_Fecha_Solicitud_tmp:
+NoConcatenate
+LOAD
+	min(Fecha_Solicitud)						AS MinFechaSolicitud
+Resident Llamadas_0810;
+
+
+LET vFechaMinSolicitud = peek('MinFechaSolicitud');
+
+DROP Table Min_Fecha_Solicitud_tmp;
+
+
+///$tab Tiempo
+Tiempo:
+NoConcatenate
+LOAD 
+	 %ID_Fecha						AS Fecha_Solicitud, 
+     Año, 
+     Semestre, 
+     Trimestre, 
+     Mes, 
+     PeriodoLargo, 
+     Periodo, 
+     DiaDeLaSemana, 
+     Semana, 
+     NumMes, 
+     NumDia, 
+     Dia, 
+     Ejercicio
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_TIEMPO.qvd] (qvd)
+Where %ID_Fecha	>= $(vFechaMinSolicitud) and  %ID_Fecha<=Today();
+///$tab Afiliados
+Afiliados:
+NoConcatenate
+LOAD Distinct 
+	 Nro_Afiliado,
+	 %ID_Afiliado, 
+     ID_ObraSocial, 
+     ID_Parentesco, 
+     ID_Provincia, 
+     ID_Localidad, 
+     ID_Plan, 
+     ID_Domicilio, 
+     ID_Afiliado, 
+     Nro_Grupo,
+//     if(isnull(Nro_Afiliado),'999999',Nro_Grupo)							AS %ID_GrupoFamiliar,
+     Apellido, 
+     Nombre, 
+     Nom_AfiliadoCompleto, 
+     FechaNacimiento, 
+     Edad, 
+     GrupoEdad, 
+     Sexo, 
+     ID_Agencia																AS AgenciaAfiliado, 
+     EstadoCivil, 
+     FechaAlta, 
+     FechaAltaAdmin, 
+     AntigAños, 
+     MotivoBaja, 
+     Discapacitado, 
+     Estado, 
+     Cuit, 
+     AntiguedadReconocida, 
+     Observaciones, 
+     FechaVigencia, 
+     ID_AfiAfi, 
+     Aporta, 
+     Adherente, 
+     ID_Acti, 
+     ID_Segmento, 
+     TitularSiNo, 
+     TipoAfiliacion, 
+     Origen, 
+     Contador, 
+//     Nom_Calle, 
+//     Nro_Calle, 
+//     Nro_Piso, 
+//     Nro_Depto, 
+//     ObservacionesDomicilio, 
+     ReferenciaExterna, 
+//     ID_Telefono, 
+//     TipoTelefono, 
+//     Nro_Telefono, 
+     PlanCopago, 
+     PlanCredencial, 
+     PlanReintegro, 
+     PlanModelo, 
+     CredencialEquivalente, 
+     CodigoPostal, 
+     Nom_Localidad, 
+     PrefijoDDN, 
+     Nom_Provincia, 
+     Dsc_Provincia, 
+     ID_Pais, 
+     Nom_Parentesco, 
+     Nom_ObraSocial, 
+     TipoObraSocial, 
+     TipoDocumento, 
+     Nro_Documento, 
+     Email,
+     %ID_Empresa
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_AFILIADOS.qvd] (qvd)
+Where Exists (%ID_Afiliado,%ID_Afiliado);
+
+
+Left Join (Afiliados)
+LOAD  
+     Date(Max(Fecha),'DD/MM/YYYY')							AS FechaBaja, 
+     ID_Afiliado											AS %ID_Afiliado
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_MOVIMIENTOSALTABAJA.qvd] (qvd)
+Where ID_TipoMovimiento='B'
+Group by ID_Afiliado;
+
+
+//Trae los importes cobrados y el saldo actual para cada afiliado
+NoConcatenate
+Retenciones_Cobradas:
+LOAD 
+	 //CODIGO, 
+     AFI_ID			as %ID_Afiliado, 
+     ENT_RAZON_SOCIAL, 
+     //SEGMENTO, 
+     OPERADOR, 
+     FECHA_GESTION, 
+     COMPROBANTE, 
+     FECHA_EMISION, 
+     FECHA_VENCIMIENTO, 
+     SALDO, 
+     IMPORTE_INTERES, 
+     SALDO_ACTUAL, 
+     IMPORTE_COBRADO
+FROM
+[$(vG.TransformPath)\STG_AFILIADOS_01_RETENCIONES_COBRADAS.qvd]
+(qvd);
+
+
+NoConcatenate
+Deuda_Afiliados_Baja:
+LOAD  
+	 AFI_ID					as %ID_Afiliado,
+     FECHA_BAJA, 
+     MOTIVO_BAJA, 
+     //CODIGO_AFILIADO,  
+     COMPROBANTE_DEUDA, 
+     COMPROBANTE_FECHA, 
+     COMPROBANTE_OBS, 
+     COMPROBANTE_VENCIMIENTO, 
+     SALDO_BAJA, 
+     SALDO_ACTUAL				AS SALDO_ACTUAL_GESTION, 
+     OPERADOR_GESTION, 
+     FECHA_GESTION				as FECHA_GESTION_REPORTE, 
+     IMPORTE_GESTION, 
+     INTERES_GESTION, 
+     COBRO_GESTION, 
+     COBRO_TOTAL_GESTION
+FROM
+[$(vG.TransformPath)\STG_AFILIADOS_01_DEUDASOCIOS_BAJA.qvd]
+(qvd);
+///$tab Delegaciones
+Delegaciones:
+NoConcatenate
+LOAD 
+	 %ID_Agencia, 
+     ID_Provincia								AS ID_Provincia_Agencia, 
+     ID_Localidad								AS ID_Localidad_Agencia, 
+     ID_RegionComercial, 
+     ID_Agencia, 
+//     %K_ID_Agencia_ObraSocial, 
+     Nom_Agencia, 
+     Agencia, 
+     EstadoAgencia, 
+     DireccionAgencia, 
+     ID_TipoAgencia, 
+     ID_TipoAgenciaOriginal, 
+     TipoAgencia, 
+     AgenciaDependenciaFinal, 
+     ID_SubTipoAgencia, 
+     RegionAgencia, 
+     Dsc_RegionComercial, 
+     CodigoPostal								AS CodigoPostal_Agencia, 
+     Nom_Localidad								AS Nom_Localidad_Agencia, 
+     PrefijoDDN									AS PrefijoDDN_Agencia, 
+     Nom_Provincia								AS Nom_Provincia_Agencia, 
+     Dsc_Provincia								AS Dsc_Provincia_Agencia, 
+//     ID_Pais, 
+     TEL1, 
+     TEL2, 
+     CEL1, 
+     TEL3, 
+     FAX1, 
+     TEL4, 
+     INT1, 
+     OTR1, 
+     CEL2, 
+     CON1
+FROM [$(vG.SharedTransformPath)\STG_NEGOCIO_01_AGENCIAS.qvd] (qvd);
+///$tab Empresa
+Empresas:
+NoConcatenate
+LOAD 
+	 GremOriginalID, 
+     EmpresaID, 
+     Empresa, 
+     EmpresaCUIT, 
+     EmpresaEstado, 
+     EmpresaTipo, 
+     GremID,  
+     GremCuadranteID, 
+     GremOriginal, 
+     GremCuadrante, 
+     Grem, 
+     GremDetalleID,  
+     GremDetalle
+FROM
+[$(vG.SharedTransformPath)\STG_GENERAL_02_EMPRESAS.qvd]
+(qvd);
+///$tab Prestadores
+Prestadores:
+NoConcatenate
+LOAD Distinct
+	 %ID_Efector, 
+     ID_Especialidad, 
+     ID_ClaseEfector, 
+//     ID_Domicilio, 
+     ID_Provincia							AS ID_Provincia_Prestador, 
+     ID_Localidad							AS ID_Localidad_Prestador, 
+     ID_Efector, 
+     Nom_Efector, 
+     K_ID_Nombre_Efector, 
+     Dsc_Efector, 
+     Obs_Efector, 
+     EstadoEfector, 
+     FechaVigencia							AS FechaVigencia_Prestador, 
+     EstadoCivil							AS EstadoCivil_Prestador, 
+     Egresado, 
+     FechaTitulo, 
+     FechaNacimiento						AS FechaNacimiento_Prestador, 
+     Edad									AS Edad_Prestador, 
+     Nom_Usuario, 
+     Firma, 
+     ID_CategoriaEfector, 
+     TipoEfector, 
+     ReferenciaExterna						AS ReferenciaExterna_Prestador, 
+     ContadorEfector, 
+//     Nom_Calle, 
+//     Nro_Calle, 
+//     Nro_Piso, 
+//     Nro_Depto, 
+//     Obs_Domicilio, 
+//     ReferenciaExternaDomi, 
+//     DomNormalizado, 
+//     Barrio, 
+//     Latitud, 
+//     Longitud, 
+//     Obs_Normalizacion, 
+//     TipoDomicilio, 
+     Nom_Localidad							AS Nom_Localidad_Prestador, 
+     CodigoPostal							AS CodigoPostal_Prestador, 
+     PrefijoDNN								AS PrefijoDNN_Prestador, 
+     Nom_Provincia							AS Nom_Provincia_Prestador, 
+//     Dsc_Provincia, 
+//     ID_Pais, 
+//     ID_Telefono, 
+//     TipoTelefono, 
+//     Nro_Telefono, 
+     ID_EfectorEnLinea, 
+     Desde, 
+     Hasta, 
+     Flag_PrestadorEnLinea, 
+     ConsSecuencia, 
+     VdaDrvCargoAfiliado, 
+     ID_SiSi, 
+     Anulado, 
+     Nom_ClaseEfector, 
+     Dsc_ClaseEfector, 
+     Obs_ClaseEfector, 
+     VDA_DRV_TIPO_EFECTOR, 
+     Nom_Especialidad, 
+     Dsc_Especialidad, 
+     Obs_Especialidad, 
+     Email									AS Email_Prestador, 
+     GrupoPrestador
+FROM
+[$(vG.SharedTransformPath)\STG_NEGOCIO_01_EFECTORES.qvd]
+(qvd);
+
+
+///$tab Proveedores
+Proveedores:
+NoConcatenate
+LOAD 
+//	 ID_Proveedor, 
+	 subfield(ProveedorLargo,'|',1)				AS %ID_Proveedor, 
+     Proveedor, 
+     CUIT										AS CUIT_Proveedor, 
+     ID_Provincia								AS ID_Provincia_Proveedor
+FROM [$(vG.SharedTransformPath)\STG_CONTABLE_01_PROVEEDORES.qvd] (qvd);
+///$tab Indicadores ART
+QUALIFY *;
+
+
+ART:
+NoConcatenate 
+LOAD
+	 Date(IncidenteFecha,'DD/MM/YYYY')		AS IncidenteFecha, 
+     Usuario, 
+//     Departamento, 
+     TipoIncidenteID, 
+//     Complejidad, 
+     Prioridad, 
+     Estado, 
+     UsuarioResponsable, 
+     CierreFecha, 
+//     Link, 
+     Observaciones, 
+     IncidenteID, 
+     EntidadTipo, 
+     date(AuditoriaFecha,'DD/MM/YYYY')		AS AuditoriaFecha, 
+     AuditoriaUsuario, 
+     date(VencimientoFecha,'DD/MM/YYYY')	AS VencimientoFecha, 
+//     AuditoriaDepartamento, 
+     TipoIncidente, 
+//     WebID, 
+     Entidad, 
+     EntidadTipoID, 
+     Date(InicioFecha,'DD/MM/YYYY')			AS IncidenteFechaInicio, 
+     Date(FinFecha,'DD/MM/YYYY')			AS IncidenteFechaFin, 
+//     LlamadaID, 
+     AutoNro, 
+     EventoMedicoID, 
+     DocumentoNro, 
+     SiniestroNro, 
+     LlamadaTipo, 
+//     TelefonoNro, 
+//     Domicilio, 
+//     Mail, 
+//     Motivo, 
+//     Tema, 
+//     ReclamoEstado, 
+//     ReclamoResolucion, 
+//     RepresentanteDocumento, 
+     Interno, 
+     GestionTipo
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_C_INC_0810_REGISTRO_ART.qvd] (qvd)
+where InicioFecha>='01/01/2015';
+
+
+UNQUALIFY *;
+
+
+//Min_Fecha_Solicitud:
+//NoConcatenate
+//LOAD
+//	min(ART.IncidenteFecha)							AS MinFechaSolicitudART
+//Resident ART;
+//
+//
+//LET vFechaMinSolicitudART = peek('MinFechaSolicitudART');
+//
+//
+//DROP Table Min_Fecha_Solicitud;
+///$tab Tiempo ART
+QUALIFY *;
+UNQUALIFY ART.IncidenteFechaInicio;
+
+
+ART_Tiempo:
+NoConcatenate
+LOAD 
+	 %ID_Fecha						AS ART.IncidenteFechaInicio, 
+     Año, 
+     Semestre, 
+     Trimestre, 
+     Mes, 
+     PeriodoLargo, 
+     Periodo, 
+     DiaDeLaSemana, 
+     Semana, 
+     NumMes, 
+     NumDia, 
+     Dia, 
+     Ejercicio
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_TIEMPO.qvd] (qvd)
+Where %ID_Fecha	>= '01/01/2015';
+
+
+UNQUALIFY *;

@@ -1,0 +1,470 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_PRESTADORES_01_CONVENIOS';
+
+QUALIFY FECHA_DESDE,
+		FECHA_HASTA,
+		FECHA_BAJA,
+		FECHA_ACTIVACION,
+		CONTEXTO,
+		ESTADO,
+		OBSERVACIONES,
+		GRADO,
+		PRIORIDAD,
+		ANULADO,
+		ACCION,
+		DETALLA_CONCEPTOS;
+/*
+Agurpación nomenclador si Homologa = nuestro nomenclador
+*/
+NoConcatenate
+SA_CONVENIOS_PRESTADORES:
+LOAD 
+	CONVENIO, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	PRES_EFE_CODIGO, 
+	CONS_SECUENCIA, 
+	CONS_PRES_EFE_CODIGO, 
+	MODCONV_CODIGO, 
+	COEFICIENTE_MODELO, 
+	AN_CODIGO, 
+	//OSOC_CODIGO, 
+	ESTADO, 
+	FECHA_ACTIVACION, 
+	FECHA_BAJA, 
+	TEXTO, 
+	OBSERVACIONES, 
+	DEBE_ACTUALIZAR
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_CONVENIOS_PRESTADORES.qvd]
+(qvd);
+
+
+/*
+*/
+NoConcatenate
+SA_PLANES_PERMITIDOS_CONVENIO:
+LOAD 
+	PPC_ID, 
+	CONVPRES_CONVENIO as CONVENIO, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	ACCION, 
+	APL_CODIGO, 
+	//CRT_CODIGO, 
+	//PLAN_CODIGO, 
+	//MPC_CODIGO, 
+	GRADO, 
+	PRIORIDAD, 
+	//ZG_CODIGO, 
+	ANULADO
+	//AFI_AFI_ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PLANES_PERMITIDOS_CONVENIO.qvd]
+(qvd);
+
+
+/*
+descuentos del prestador a nosotros (por ejemplo en farmacia)
+*/
+NoConcatenate
+SA_DESCUENTOS_CONVENIO:
+LOAD 
+	DESCON_ID, 
+	CONVPRES_CONVENIO as CONVENIO, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	HONORARIOS_GASTOS, 
+	PORCENTAJE_DESCUENTO, 
+	GPRES_GRUPO, 
+	VDA_DRV
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DESCUENTOS_CONVENIO.qvd]
+(qvd);
+
+
+/*
+se generan cortes y se leen en orden de acuerdo a su prioridad y otro atributo. 
+La valorización de la prestación se hará por el primer corte en el que entre
+*/
+NoConcatenate
+SA_BASES_EXCEPCION_CONVENIO:
+LOAD 
+	BEC_ID, 
+	CONVPRES_CONVENIO as CONVENIO, 
+	PRIORIDAD, 
+	GRADO, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	RPRES_CODIGO, 
+	EMPL_EMPL_ID, 
+	//OSOC_CODIGO, 
+	//CRT_CODIGO, 
+	//ZG_CODIGO, 
+	AA_CODIGO, 
+	AA1_CODIGO, 
+	AA2_CODIGO, 
+	AA3_CODIGO, 
+	AA4_CODIGO, 
+	//PLAN_CODIGO, 
+	//MPC_CODIGO, 
+	APL_CODIGO, 
+	//AFI_AFI_ID, 
+	EFE_CODIGO, 
+	CE_CODIGO, 
+	AGEFE_CODIGO, 
+	CATEFE_CODIGO, 
+	TRS_CODIGO, 
+	ANULADO, 
+	CATEAS_CODIGO, 
+	AGEM_CODIGO, 
+	GREM_CODIGO, 
+	INC_EXC_LISTA_PLANES, 
+	LISTA_PLANES, 
+	INC_EXC_LISTA_MPC, 
+	LISTA_MPC, 
+	INC_EXC_LISTA_APL, 
+	LISTA_APL
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_BASES_EXCEPCION_CONVENIO.qvd]
+(qvd);
+
+
+/*
+clausula particular: prestación -> $$$
+arancel: se paga por unidad
+*/
+NoConcatenate
+SA_DETALLES_BASE_EXCEPCION:
+LOAD 
+	DBE_ID, 
+	BEC_BEC_ID	as BEC_ID, 
+	DBE_TYPE, 
+	ACCION, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	CONTEXTO, 
+	COEFICIENTE_HONORARIOS, 
+	COEFICIENTE_GASTOS, 
+	CAPITADO, 
+	CAPC_CAPC_ID, 
+	DETALLA_CONCEPTOS, 
+	LVNOM_CODIGO, 
+	TVAL_CODIGO_GASTOS, 
+	TVAL_CODIGO_HONORARIOS, 
+	DBMC_DBMC_ID, 
+	CCONV_CODIGO, 
+	OBSERVACIONES, 
+	GRADO, 
+	PRIORIDAD, 
+	ANULADO, 
+	LVNOM_DEFINE_PREST_PACTADAS
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DETALLES_BASE_EXCEPCION.qvd]
+(qvd);
+
+
+/*
+*/
+NoConcatenate
+SA_LISTAS_VALOR_NOMENCLADOR:
+LOAD 
+	CODIGO	as LVNOM_CODIGO, 
+	NOMBRE, 
+	DESCRIPCION, 
+	OBSERVACIONES, 
+	DEBE_ACTUALIZAR
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_LISTAS_VALOR_NOMENCLADOR.qvd]
+(qvd);
+
+
+/*
+es como la cabecera
+*/
+NoConcatenate
+SA_VALORIZACIONES_NOM:
+LOAD 
+	NOM_PRESTACION, 
+	LVNOM_CODIGO, 
+	TVAL_CODIGO, 
+	TVAL_CODIGO_GASTO, 
+	DESDE, 
+	HASTA, 
+	HONORARIOS, 
+	GASTOS, 
+	DETALLA_CONCEPTOS, 
+	VALNOM_ID as VALNOM_VALNOM_ID, 
+	LISTA_PRINCIPAL, 
+	ACA_PJE, 
+	ACA_CANT, 
+	ACA_PJE_TOT
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_VALORIZACIONES_NOM.qvd]
+(qvd);
+
+
+/*
+es como el detalle
+*/
+NoConcatenate
+SA_DETALLES_CONCEPTOS_NOM:
+LOAD 
+	DCN_ID, 
+	CONTEXTO, 
+	SISTEMA, 
+	CANTIDAD_MAXIMA, 
+	PRINCIPAL, 
+	AJUSTA_MAXIMO, 
+	BASE_MAXIMO, 
+	OBLIGATORIO, 
+	VALOR, 
+	VALNOM_VALNOM_ID, 
+	CONPREST_CODIGO
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DETALLES_CONCEPTOS_NOM.qvd]
+(qvd);
+
+EXIT Script;
+/*
+incluye o excluy prestaciones
+*/
+NoConcatenate
+SA_CLAUSULAS_CONVENIO:
+LOAD 
+	CODIGO, 
+	NOMBRE, 
+	DESCRIPCION, 
+	LVNOM_CODIGO, 
+	COEFICIENTE_HONORARIOS, 
+	COEFICIENTE_GASTOS, 
+	TVAL_CODIGO_HONORARIOS, 
+	TVAL_CODIGO_GASTOS, 
+	DETALLA_CONCEPTOS, 
+	OBSERVACIONES, 
+	ESTADO, 
+	FECHA_ACTIVACION
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_CLAUSULAS_CONVENIO.qvd]
+(qvd);
+
+
+/*
+*/
+NoConcatenate
+SA_PRESTACIONES_CLAUSULA_CONV:
+LOAD 
+	PCC_ID, 
+	INCLUYE_EXCLUYE, 
+	GPRES_GRUPO, 
+	CCONV_CODIGO, 
+	NOM_PRESTACION
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PRESTACIONES_CLAUSULA_CONV.qvd]
+(qvd);
+
+
+/*
+*/
+NoConcatenate
+SA_VALORIZ_CLAUSULA_CONVENIO:
+LOAD 
+	VCCONV_ID, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	OBSERVACIONES, 
+	COEFICIENTE_HONORARIOS, 
+	COEFICIENTE_GASTOS, 
+	LVNOM_CODIGO, 
+	TVAL_CODIGO_GASTOS, 
+	TVAL_CODIGO_HONORARIOS, 
+	CCONV_CODIGO, 
+	ANULADO, 
+	ACA_PJE, 
+	ACA_CANT, 
+	ACA_PJE_TOT
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_VALORIZ_CLAUSULA_CONVENIO.qvd]
+(qvd);
+
+
+/*
+creo que acá es donde el detalle concepto debe estar permitido para tomarlo (PERMITIDO=TRUE)
+*/
+NoConcatenate
+SA_DETALLES_CONCEPTOS_CLA:
+LOAD 
+	DCC_ID, 
+	CCONV_CODIGO, 
+	CONPREST_CODIGO, 
+	CONTEXTO, 
+	PERMITIDO, 
+	OBLIGATORIO, 
+	CANTIDAD_MAXIMA, 
+	OPERACION, 
+	VALOR, 
+	FORMULA, 
+	MINIMO, 
+	VCCONV_VCCONV_ID, 
+	ACA_PJE_CON
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DETALLES_CONCEPTOS_CLA.qvd]
+(qvd);
+
+
+/*
+aumenta o disminuye valor
+*/
+NoConcatenate
+SA_DETALLES_MODIFICADORES_CLA:
+LOAD 
+	DMC_ID, 
+	CCONV_CODIGO, 
+	DCC_DCC_ID, 
+	MODPREST_CODIGO, 
+	CONTEXTO, 
+	PERMITIDO, 
+	OBLIGATORIO, 
+	OPERACION, 
+	VALOR, 
+	VALOR_INGRESABLE, 
+	FORMULA, 
+	MINIMO, 
+	VCCONV_VCCONV_ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DETALLES_MODIFICADORES_CLA.qvd]
+(qvd);
+
+
+/*
+es como una plantilla para aplicar a muchos convenios. Se referencia en SA_CONVENIOS_PRESTADORES
+*/
+NoConcatenate
+SA_MODELOS_CONVENIOS:
+LOAD 
+	CODIGO	as MODCONV_CODIGO, 
+	NOMBRE, 
+	DESCRIPCION, 
+	OBSERVACIONES, 
+	ESP_CODIGO, 
+	AGPRES_CODIGO, 
+	ESTADO, 
+	FECHA_ACTIVACION, 
+	FECHA_BAJA
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_MODELOS_CONVENIOS.qvd]
+(qvd);
+
+
+/*
+*/
+NoConcatenate
+SA_BASES_MODELO_CONVENIO:
+LOAD 
+	BMC_ID, 
+	MODCONV_CODIGO, 
+	PRIORIDAD, 
+	GRADO, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	EMPL_EMPL_ID, 
+	//OSOC_CODIGO, 
+	RPRES_CODIGO, 
+	//CRT_CODIGO, 
+	AA_CODIGO, 
+	AA1_CODIGO, 
+	AA2_CODIGO, 
+	AA3_CODIGO, 
+	AA4_CODIGO, 
+	//ZG_CODIGO, 
+	//PLAN_CODIGO, 
+	APL_CODIGO, 
+	//MPC_CODIGO, 
+	//AFI_AFI_ID, 
+	CE_CODIGO, 
+	AGEFE_CODIGO, 
+	CATEFE_CODIGO, 
+	TRS_CODIGO, 
+	ANULADO, 
+	CATEAS_CODIGO, 
+	INC_EXC_LISTA_PLANES, 
+	LISTA_PLANES, 
+	INC_EXC_LISTA_MPC, 
+	LISTA_MPC, 
+	INC_EXC_LISTA_APL, 
+	LISTA_APL
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_BASES_MODELO_CONVENIO.qvd]
+(qvd);
+
+
+/*
+*/
+NoConcatenate
+SA_DETALLES_BASE_MODELO_CONV:
+LOAD 
+	DBMC_ID, 
+	BMC_BMC_ID	as BMC_ID, 
+	FECHA_DESDE, 
+	FECHA_HASTA, 
+	CONTEXTO, 
+	CCONV_CODIGO, 
+	GRADO, 
+	PRIORIDAD, 
+	ANULADO, 
+	COEFICIENTE_HONORARIOS, 
+	COEFICIENTE_GASTOS
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DETALLES_BASE_MODELO_CONV.qvd]
+(qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+//STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+//DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

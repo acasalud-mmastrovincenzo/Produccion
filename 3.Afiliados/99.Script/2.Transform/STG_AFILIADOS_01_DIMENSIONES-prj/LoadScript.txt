@@ -1,0 +1,1244 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+
+//$(vG.SharedCustomPath)
+Call LCGV ('Shared', 'Custom');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab Afiliados y Familiares
+// DESARROLLADO POR: LSEMINO - Fecha de Creación: 10/05/2016.
+// OBJETIVO: GENERAR UN UNICO QVD CON LOS DATOS COMPLETOS DE LOS AFILIADOS.
+
+
+// RENOMBRAMOS LOS CAMPOS DE LA TABLA ORIGINAL DE ORACLE Y COMPLETAMOS LOS DATOS DE PLAN, SEGMENTO, TIPO AFILIACION Y AGENCIA DE LOS FAMILIARES DE LOS SOCIOS ACTIVOS UNICAMENTE.
+
+LET vL.QVD = 'STG_AFILIADOS_01_AFILIADOS';
+
+
+// Levanto los datos de los titulares.
+$(vL.QVD):
+LOAD 
+	 SubField(CODIGO,'/',1)							as Nro_Grupo,
+	 CODIGO											as Nro_Afiliado, 
+     APELLIDOS										as Apellido, 
+     NOMBRES										as Nombre,
+     Trim(APELLIDOS) & ' ' & Trim(NOMBRES) 			AS Nom_AfiliadoCompleto, 
+     DATE(FECHA_NACIMIENTO, 'DD/MM/YYYY')			as FechaNacimiento, 
+     AGE(TODAY(),FECHA_NACIMIENTO)					as Edad,
+     Floor(AGE(TODAY(),FECHA_NACIMIENTO), 10)		as GrupoEdad,
+     SEXO											as Sexo, 
+     DEL_OS_CODIGO									AS ID_Agencia, 
+//   DEL_OS_OSOC_CODIGO, 
+     ESTADO_CIVIL									as EstadoCivil, 
+     FECHA_ALTA										as FechaAlta, 
+     DATE(FECHA_ALTA_ADMINISTRATIVA, 'DD/MM/YYYY')	as FechaAltaAdmin,
+     AGE(TODAY(),FECHA_ALTA_ADMINISTRATIVA)			as AntigAños,
+     MOTIVO_DE_BAJA									as MotivoBaja, 
+     DISCAPACITADO									as Discapacitado, 
+     ESTADO											as Estado, 
+     CUIT											as Cuit, 
+     ANTIGUEDAD_RECONOCIDA							as AntiguedadReconocida, 
+//   TB_CODIGO, 
+     OBSERVACIONES									as Observaciones, 
+//   OSOC_CODIGO_OS_ANTERIOR, 
+//   PAIS_CODIGO, 
+     FECHA_VIGENCIA									as FechaVigencia, 
+     AFI_AFI_ID										as ID_AfiAfi, 
+     If(IsNull(PAR_CODIGO), 'TIT', PAR_CODIGO)		as ID_Parentesco, 
+     APORTA											as Aporta, 
+     ADHERENTE										as Adherente, 
+//     AA1_CODIGO, 
+//     AA2_CODIGO, 
+//     AA3_CODIGO, 
+//     AA4_CODIGO, 
+     ACTI_CODIGO									as ID_Acti, 
+     AA_CODIGO										as ID_Segmento, 
+//     SUC_EMP_EMPL_EMPL_ID, 
+//     CATAFI_CODIGO, 
+//     SITUACION_REVISTA, 
+//     SUC_EMP_CODIGO, 
+     OSOC_CODIGO									as ID_ObraSocial, 
+     PLAN_CODIGO									as ID_Plan, 
+//     SUJETO_FACTURACION, 
+     AFI_ID											as %ID_Afiliado, 
+     AFI_ID											as ID_Afiliado,
+     AFI_TYPE										as TitularSiNo, 
+     AFILIACION										as TipoAfiliacion,
+     'Titular'										AS Origen,
+     1												AS Contador
+//     REFERENCIA_EXTERNA, 
+//     MAIL
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd](qvd)
+WHERE AFI_TYPE = 'TIT';
+
+
+
+// Levanto los datos de los familiares.
+$(vL.QVD)_Familia_Tmp:
+NoConcatenate
+LOAD 
+	 SubField(CODIGO,'/',1)							as Nro_Grupo,
+	 CODIGO											as Nro_Afiliado, 
+     APELLIDOS										as Apellido, 
+     NOMBRES										as Nombre, 
+     Trim(APELLIDOS) & ' ' & Trim(NOMBRES) 			AS Nom_AfiliadoCompleto, 
+     DATE(FECHA_NACIMIENTO, 'DD/MM/YYYY')			as FechaNacimiento, 
+     AGE(TODAY(),FECHA_NACIMIENTO)					as Edad,
+     Floor(AGE(TODAY(),FECHA_NACIMIENTO), 10)		as GrupoEdad,
+     SEXO											as Sexo, 
+//     DEL_OS_CODIGO									AS ID_Agencia, 
+//     DEL_OS_OSOC_CODIGO, 
+     ESTADO_CIVIL									as EstadoCivil, 
+     FECHA_ALTA										as FechaAlta, 
+     DATE(FECHA_ALTA_ADMINISTRATIVA, 'DD/MM/YYYY')	as FechaAltaAdmin,
+     AGE(TODAY(),FECHA_ALTA_ADMINISTRATIVA)			as AntigAños,
+     MOTIVO_DE_BAJA									as MotivoBaja, 
+     DISCAPACITADO									as Discapacitado, 
+     ESTADO											as Estado, 
+     CUIT											as Cuit, 
+     ANTIGUEDAD_RECONOCIDA							as AntiguedadReconocida, 
+//     TB_CODIGO, 
+     OBSERVACIONES									as Observaciones, 
+//     OSOC_CODIGO_OS_ANTERIOR, 
+//     PAIS_CODIGO, 
+     FECHA_VIGENCIA									as FechaVigencia, 
+     AFI_AFI_ID										as ID_AfiAfi, 
+     PAR_CODIGO										as ID_Parentesco, 
+     APORTA											as Aporta, 
+     ADHERENTE										as Adherente, 
+//     AA1_CODIGO, 
+//     AA2_CODIGO, 
+//     AA3_CODIGO, 
+//     AA4_CODIGO, 
+     ACTI_CODIGO									as ID_Acti, 
+//   AA_CODIGO										as ID_Segmento, 
+//     SUC_EMP_EMPL_EMPL_ID, 
+//     CATAFI_CODIGO, 
+//     SITUACION_REVISTA, 
+//     SUC_EMP_CODIGO, 
+     OSOC_CODIGO									as ID_ObraSocial_Familiar, 
+//   PLAN_CODIGO									as ID_Plan, 
+//     SUJETO_FACTURACION, 
+     AFI_ID											as %ID_Afiliado, 
+     AFI_ID											as ID_Afiliado, 
+     AFI_TYPE										as TitularSiNo,
+     'Familiar'										AS Origen,
+     1												AS Contador
+//   AFILIACION										as TipoAfiliacion
+//     REFERENCIA_EXTERNA, 
+//     MAIL
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd](qvd)
+WHERE AFI_TYPE = 'FAM';
+
+
+
+// Traigo el Segmento, la Agencia, el Plan, el Tipo de Afiliación y la Obra Social de los datos de los Afiliados TIT.
+LEFT JOIN($(vL.QVD)_Familia_Tmp)
+LOAD
+	Nro_Grupo,
+	ID_Segmento,
+	ID_Agencia,
+	ID_Plan,
+	TipoAfiliacion,
+	ID_ObraSocial				AS ID_ObraSocial_Titular
+RESIDENT $(vL.QVD);
+//WHERE Estado = 'A';
+
+
+
+$(vL.QVD)_Familia:
+NoConcatenate
+LOAD *,
+	If(IsNull(ID_ObraSocial_Familiar), ID_ObraSocial_Titular, ID_ObraSocial_Familiar)	AS ID_ObraSocial
+Resident $(vL.QVD)_Familia_Tmp;
+
+DROP Table $(vL.QVD)_Familia_Tmp;
+DROP Fields ID_ObraSocial_Titular, ID_ObraSocial_Familiar;
+
+
+// Concateno a los Afiliados los datos de los Familiares.
+Concatenate($(vL.QVD))
+LOAD
+	*
+RESIDENT $(vL.QVD)_Familia;
+	
+DROP TABLE $(vL.QVD)_Familia;
+
+
+///$tab Otros Datos de Afiliados
+// Uno los datos del domicilio.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 AFI_AFI_ID							AS %ID_Afiliado,
+	 DOMIAFI_ID							AS ID_Domicilio, 
+     LOC_LOC_ID							AS ID_Localidad,       
+     CALLE								AS Nom_Calle, 
+     NUMERO								AS Nro_Calle, 
+     PISO								AS Nro_Piso, 
+     DPTO								AS Nro_Depto, 
+     OBSERVACIONES						AS ObservacionesDomicilio, 
+     REFERENCIA_EXTERNA					AS ReferenciaExterna
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOMICILIOS_AFILIADO.qvd] (qvd);
+
+
+// Uno los datos de Telefonia.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 DOMIAFI_DOMIAFI_ID					AS ID_Domicilio,
+	 TELAFI_ID							AS ID_Telefono, 
+     TIPO								AS TipoTelefono, 
+     NUMERO     						AS Nro_Telefono
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TELEFONOS_AFILIADO.qvd] (qvd);
+
+
+// Uno los datos de Planes de Cobertura.
+LEFT JOIN ($(vL.QVD))
+LOAD PLAN_CODIGO					AS ID_Plan, 
+     CPLAN							AS PlanCopago, 
+     Credencial						AS PlanCredencial, 
+     Reintegro						AS PlanReintegro, 
+     Modelo							AS PlanModelo, 
+     Credencial_Equivalente			AS CredencialEquivalente
+FROM [$(vG.SharedCustomPath)\1.Archivos\Planes Credenciales.xls]
+(biff, embedded labels, table is Sheet1$);
+//FROM [..\..\..\DATA\AUXILIARES\QVD\DATA_AUXILIAR_FUENTES_PLANES_CREDENCIALES.qvd] (qvd);
+
+
+// Uno los datos de Localidades.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 LOC_ID 					AS ID_Localidad,
+	 Left(CODIGO_POSTAL,4)		AS CodigoPostal, 
+     LOCALIDAD					AS Nom_Localidad, 
+     PCIA_CODIGO				AS ID_Provincia, 
+     PREFIJO_DDN				AS PrefijoDDN     
+//     LOC_VALIDA
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_LOCALIDADES.qvd] (qvd);
+
+
+// Uno los datos de Provincias.
+LEFT JOIN ($(vL.QVD))
+LOAD CODIGO					AS ID_Provincia, 
+     NOMBRE					AS Nom_Provincia, 
+     DESCRIPCION			AS Dsc_Provincia, 
+     PAIS_CODIGO			AS ID_Pais
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PROVINCIAS.qvd] (qvd);
+
+
+
+// Levanto el Maestro de Parentesco.
+Parentescos:
+LOAD CODIGO					AS ID_Parentesco, 
+     NOMBRE					AS Nom_Parentesco //, 
+//     DESCRIPCION			AS Dsc_Parentesco
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PARENTESCOS.qvd] (qvd);
+
+
+// Genero en Parentesco un registro mas para los afiliados Titulares.
+Concatenate(Parentescos)
+LOAD * Inline [
+	ID_Parentesco, Nom_Parentesco
+	'TIT', 'TITULAR'];
+	
+	
+
+// Uno los datos de Parentesco.
+LEFT JOIN ($(vL.QVD))
+LOAD * Resident Parentescos;
+
+DROP Table Parentescos;
+
+
+// Uno los datos de Obras Sociales.
+LEFT JOIN ($(vL.QVD))
+LOAD CODIGO			AS ID_ObraSocial, 
+     NOMBRE			AS Nom_ObraSocial,     
+     OSOC_TYPE 		AS TipoObraSocial
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_OBRAS_SOCIALES.qvd] (qvd);
+
+
+// Busco el Tipo y Nro. de Documento.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 AFI_AFI_ID		AS ID_Afiliado,
+	 TDOC_TIPO		AS TipoDocumento, 
+     NUMERO 		AS Nro_Documento     
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOCUMENTOS_AFILIADO.qvd] (qvd);
+
+
+// Busco el eMail.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+     AFI_AFI_ID			AS ID_Afiliado, 
+     VALOR				AS Email 
+//     OBSERVACIONES, 
+//     OBJETO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADICIONAL_AFI.qvd] (qvd)
+WHERE TDATMAE_CODIGO = 'EM_S';
+
+
+// Busco la empresa.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+//	   MES, 
+     AFI_ID			AS ID_Afiliado, 
+//     CODIGO, 
+//     APELLIDOS, 
+//     NOMBRES, 
+//     ESTADO, 
+//     AFI_TYPE, 
+//     AFI_AFI_ID, 
+//     SEXO, 
+//     FECHA_NACIMIENTO, 
+//     PAIS_CODIGO, 
+//     GRUPO_ETAREO, 
+//     AFILIACION, 
+//     PLAN_CODIGO, 
+//     AA_CODIGO, 
+//     AA1_CODIGO, 
+//     AA2_CODIGO, 
+//     AA3_CODIGO, 
+//     AA4_CODIGO, 
+//     CATAFI_CODIGO, 
+     	If((Exists(Afi16, AFI_ID) OR Exists(Afi16, AFI_AFI_ID)) AND SUC_EMP_EMPL_EMPL_ID > 630000 AND SUC_EMP_EMPL_EMPL_ID < 630003, 
+		'699616',
+       	If((Exists(Afi19, AFI_ID) OR Exists(Afi19, AFI_AFI_ID)) AND SUC_EMP_EMPL_EMPL_ID > 630000 AND SUC_EMP_EMPL_EMPL_ID < 630003, 
+       		'699619',
+       		SUC_EMP_EMPL_EMPL_ID))			AS %ID_Empresa,
+     SUC_EMP_EMPL_EMPL_ID//, 
+//     SUC_EMP_CODIGO, 
+//     OSOC_CODIGO, 
+//     DEL_OS_OSOC_CODIGO, 
+//     DEL_OS_CODIGO, 
+//     PAR_CODIGO, 
+//     APORTA, 
+//     ADHERENTE, 
+//     ESTADO_CIVIL, 
+//     LOC_AFILIADO, 
+//     ZG_AFILIADO, 
+//     LOC_DELEGACION, 
+//     ZG_DELEGACION, 
+//     CGA_CODIGO, 
+//     CUOTA_LIQUIDADA, 
+//     %K_ID_MES_AFI
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_HBI_HBI_EXT_AFI_MES.qvd]
+(qvd);
+
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);   
+DROP Table $(vL.QVD);
+
+///$tab Afiliados y Familiares II
+// DESARROLLADO POR: LSEMINO - Fecha de Creación: 10/05/2016.
+// OBJETIVO: GENERAR UN UNICO QVD CON LOS DATOS COMPLETOS DE LOS AFILIADOS rellenando O.Social, Domicilio y Telefono.
+
+
+// RENOMBRAMOS LOS CAMPOS DE LA TABLA ORIGINAL DE ORACLE Y COMPLETAMOS LOS DATOS DE PLAN, SEGMENTO, TIPO AFILIACION Y AGENCIA DE LOS FAMILIARES DE LOS SOCIOS ACTIVOS UNICAMENTE.
+
+LET vL.QVD = 'STG_AFILIADOS_01_AFILIADOS_RELLENADO';
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+//									TITULARES													   //
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Levanto los datos de los Titulares.
+$(vL.QVD):
+LOAD 
+	 SubField(CODIGO,'/',1)							as Nro_Grupo,
+	 CODIGO											as Nro_Afiliado, 
+     APELLIDOS										as Apellido, 
+     NOMBRES										as Nombre,
+     Trim(APELLIDOS) & ' ' & Trim(NOMBRES) 			AS Nom_AfiliadoCompleto, 
+     DATE(FECHA_NACIMIENTO, 'DD/MM/YYYY')			as FechaNacimiento, 
+     AGE(TODAY(),FECHA_NACIMIENTO)					as Edad,
+     Floor(AGE(TODAY(),FECHA_NACIMIENTO), 10)		as GrupoEdad,
+     SEXO											as Sexo, 
+     DEL_OS_CODIGO									AS ID_Agencia, 
+//   DEL_OS_OSOC_CODIGO, 
+     ESTADO_CIVIL									as EstadoCivil, 
+     DATE(FECHA_ALTA, 'DD/MM/YYYY')					as FechaAlta, 
+     DATE(FECHA_ALTA_ADMINISTRATIVA, 'DD/MM/YYYY')	as FechaAltaAdmin,
+     AGE(TODAY(),FECHA_ALTA_ADMINISTRATIVA)			as AntigAños,
+     MOTIVO_DE_BAJA									as MotivoBaja, 
+     DISCAPACITADO									as Discapacitado, 
+     ESTADO											as Estado, 
+     CUIT											as Cuit, 
+     ANTIGUEDAD_RECONOCIDA							as AntiguedadReconocida, 
+//   TB_CODIGO, 
+     OBSERVACIONES									as Observaciones, 
+//   OSOC_CODIGO_OS_ANTERIOR, 
+//   PAIS_CODIGO, 
+     FECHA_VIGENCIA									as FechaVigencia, 
+     AFI_AFI_ID										as ID_AfiAfi, 
+     If(IsNull(PAR_CODIGO), 'TIT', PAR_CODIGO)		as ID_Parentesco, 
+     APORTA											as Aporta, 
+     ADHERENTE										as Adherente, 
+//     AA1_CODIGO, 
+//     AA2_CODIGO, 
+//     AA3_CODIGO, 
+//     AA4_CODIGO, 
+     ACTI_CODIGO									as ID_Acti, 
+     AA_CODIGO										as ID_Segmento, 
+     SUC_EMP_EMPL_EMPL_ID							AS ID_Empresa, 
+//     CATAFI_CODIGO, 
+//     SITUACION_REVISTA, 
+//     SUC_EMP_CODIGO, 
+     OSOC_CODIGO									as ID_ObraSocial, 
+     PLAN_CODIGO									as ID_Plan, 
+//     SUJETO_FACTURACION, 
+     AFI_ID											as %ID_Afiliado, 
+     AFI_ID											as ID_Afiliado,
+     AFI_TYPE										as TitularSiNo, 
+     AFILIACION										as TipoAfiliacion,
+     'Titular'										AS Origen,
+     1												AS Contador
+//     REFERENCIA_EXTERNA, 
+//     MAIL
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd](qvd)
+WHERE AFI_TYPE = 'TIT';
+
+
+
+// Uno los datos del domicilio.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 AFI_AFI_ID							AS %ID_Afiliado,
+	 DOMIAFI_ID							AS ID_Domicilio, 
+     LOC_LOC_ID							AS ID_Localidad,       
+     CALLE								AS Nom_Calle, 
+     NUMERO								AS Nro_Calle, 
+     PISO								AS Nro_Piso, 
+     DPTO								AS Nro_Depto, 
+     OBSERVACIONES						AS ObservacionesDomicilio, 
+     REFERENCIA_EXTERNA					AS ReferenciaExterna
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOMICILIOS_AFILIADO.qvd] (qvd);
+
+
+// Uno los datos de Telefonia.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 DOMIAFI_DOMIAFI_ID					AS ID_Domicilio,
+	 TELAFI_ID							AS ID_Telefono, 
+     TIPO								AS TipoTelefono, 
+     NUMERO     						AS Nro_Telefono
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TELEFONOS_AFILIADO.qvd] (qvd);
+
+
+
+// LS - Agregado el 26.06.2017.-
+// Busco el eMail.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+     AFI_AFI_ID							AS %ID_Afiliado, 
+     VALOR								AS Email 
+//     OBSERVACIONES, 
+//     OBJETO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADICIONAL_AFI.qvd] (qvd)
+WHERE TDATMAE_CODIGO = 'EM_S';
+
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+//									FAMILIARES													   //
+/////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Levanto los datos de los familiares.
+$(vL.QVD)_Familia_Tmp:
+NoConcatenate
+LOAD 
+	 SubField(CODIGO,'/',1)							as Nro_Grupo,
+	 CODIGO											as Nro_Afiliado, 
+     APELLIDOS										as Apellido, 
+     NOMBRES										as Nombre, 
+     Trim(APELLIDOS) & ' ' & Trim(NOMBRES) 			AS Nom_AfiliadoCompleto, 
+     DATE(FECHA_NACIMIENTO, 'DD/MM/YYYY')			as FechaNacimiento, 
+     AGE(TODAY(),FECHA_NACIMIENTO)					as Edad,
+     Floor(AGE(TODAY(),FECHA_NACIMIENTO), 10)		as GrupoEdad,
+     SEXO											as Sexo, 
+//     DEL_OS_CODIGO									AS ID_Agencia, 
+//     DEL_OS_OSOC_CODIGO, 
+     ESTADO_CIVIL									as EstadoCivil, 
+     DATE(FECHA_ALTA, 'DD/MM/YYYY')					as FechaAlta, 
+     DATE(FECHA_ALTA_ADMINISTRATIVA, 'DD/MM/YYYY')	as FechaAltaAdmin,
+     AGE(TODAY(),FECHA_ALTA_ADMINISTRATIVA)			as AntigAños,
+     MOTIVO_DE_BAJA									as MotivoBaja, 
+     DISCAPACITADO									as Discapacitado, 
+     ESTADO											as Estado, 
+     CUIT											as Cuit, 
+     ANTIGUEDAD_RECONOCIDA							as AntiguedadReconocida, 
+//     TB_CODIGO, 
+     OBSERVACIONES									as Observaciones, 
+//     OSOC_CODIGO_OS_ANTERIOR, 
+//     PAIS_CODIGO, 
+     FECHA_VIGENCIA									as FechaVigencia, 
+     AFI_AFI_ID										as ID_AfiAfi, 
+     PAR_CODIGO										as ID_Parentesco, 
+     APORTA											as Aporta, 
+     ADHERENTE										as Adherente, 
+//     AA1_CODIGO, 
+//     AA2_CODIGO, 
+//     AA3_CODIGO, 
+//     AA4_CODIGO, 
+     ACTI_CODIGO									as ID_Acti, 
+//   AA_CODIGO										as ID_Segmento, 
+//     SUC_EMP_EMPL_EMPL_ID, 
+//     CATAFI_CODIGO, 
+//     SITUACION_REVISTA, 
+//     SUC_EMP_CODIGO, 
+     OSOC_CODIGO									as ID_ObraSocial_Familiar, 
+//   PLAN_CODIGO									as ID_Plan, 
+//     SUJETO_FACTURACION, 
+     AFI_ID											as %ID_Afiliado, 
+     AFI_ID											as ID_Afiliado, 
+     AFI_TYPE										as TitularSiNo,
+     'Familiar'										AS Origen,
+     1												AS Contador
+//   AFILIACION										as TipoAfiliacion
+//     REFERENCIA_EXTERNA, 
+//     MAIL
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd](qvd)
+WHERE AFI_TYPE = 'FAM';
+
+
+
+// Uno los datos del domicilio al Familiar.
+LEFT JOIN ($(vL.QVD)_Familia_Tmp)
+LOAD 
+	 AFI_AFI_ID							AS %ID_Afiliado,
+	 DOMIAFI_ID							AS ID_Domicilio_Familiar, 
+     LOC_LOC_ID							AS ID_Localidad_Familiar,       
+     CALLE								AS Nom_Calle_Familiar, 
+     NUMERO								AS Nro_Calle_Familiar, 
+     PISO								AS Nro_Piso_Familiar, 
+     DPTO								AS Nro_Depto_Familiar 
+//     OBSERVACIONES						AS ObservacionesDomicilio, 
+//     REFERENCIA_EXTERNA					AS ReferenciaExterna
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOMICILIOS_AFILIADO.qvd] (qvd);
+
+
+// Uno los datos de Telefonia al Familiar.
+LEFT JOIN ($(vL.QVD)_Familia_Tmp)
+LOAD 
+	 DOMIAFI_DOMIAFI_ID					AS ID_Domicilio_Familiar,
+	 TELAFI_ID							AS ID_Telefono_Familiar, 
+     TIPO								AS TipoTelefono_Familiar, 
+     NUMERO     						AS Nro_Telefono_Familiar
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TELEFONOS_AFILIADO.qvd] (qvd);
+
+
+// LS - Agregado el 26.06.2017.-
+// Uno el eMail al Familiar (si es que tiene).
+LEFT JOIN ($(vL.QVD)_Familia_Tmp)
+LOAD  
+     AFI_AFI_ID							AS %ID_Afiliado, 
+     VALOR								AS Email_Familiar
+//     OBSERVACIONES, 
+//     OBJETO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADICIONAL_AFI.qvd] (qvd)
+WHERE TDATMAE_CODIGO = 'EM_S';
+
+
+
+
+// Traigo el Segmento, la Agencia, el Plan, el Tipo de Afiliación, la Empresa y la Obra Social, el/los telefonos y el/los domicilios de los datos de los Afiliados TIT.
+LEFT JOIN($(vL.QVD)_Familia_Tmp)
+LOAD
+	Nro_Grupo,
+	ID_Segmento,
+	ID_Agencia,
+	ID_Plan,
+	TipoAfiliacion,
+	ID_ObraSocial				AS ID_ObraSocial_Titular,
+	ID_Empresa,
+	TipoTelefono				AS TipoTelefono_Titular, 
+    Nro_Telefono				AS Nro_Telefono_Titular,
+    ID_Localidad				AS ID_Localidad_Titular,       
+    Nom_Calle					AS Nom_Calle_Titular, 
+    Nro_Calle					AS Nro_Calle_Titular, 
+    Nro_Piso					AS Nro_Piso_Titular, 
+    Nro_Depto					AS Nro_Depto_Titular,
+    Email						AS Email_Titular
+RESIDENT $(vL.QVD);
+//WHERE Estado = 'A';
+
+
+
+$(vL.QVD)_Familia:
+NoConcatenate
+LOAD *,
+	If(IsNull(ID_ObraSocial_Familiar), ID_ObraSocial_Titular, ID_ObraSocial_Familiar)	AS ID_ObraSocial,
+	If(IsNull(TipoTelefono_Familiar), TipoTelefono_Titular, TipoTelefono_Familiar)		AS TipoTelefono,
+	If(IsNull(Nro_Telefono_Familiar), Nro_Telefono_Titular, Nro_Telefono_Familiar)		AS Nro_Telefono,
+	If(IsNull(ID_Localidad_Familiar), ID_Localidad_Titular, ID_Localidad_Familiar)		AS ID_Localidad,
+	If(IsNull(Nom_Calle_Familiar), Nom_Calle_Titular, Nom_Calle_Familiar)				AS Nom_Calle,
+	If(IsNull(Nro_Calle_Familiar), Nro_Calle_Titular, Nro_Calle_Familiar)				AS Nro_Calle,
+	If(IsNull(Nro_Piso_Familiar), Nro_Piso_Titular, Nro_Piso_Familiar)					AS Nro_Piso,
+	If(IsNull(Nro_Depto_Familiar), Nro_Depto_Titular, Nro_Depto_Familiar)				AS Nro_Depto,
+	If(IsNull(Email_Familiar), Email_Titular, Email_Familiar)							AS Email
+Resident $(vL.QVD)_Familia_Tmp;
+
+DROP Table $(vL.QVD)_Familia_Tmp;
+DROP Fields ID_ObraSocial_Titular, ID_ObraSocial_Familiar, TipoTelefono_Titular, TipoTelefono_Familiar,
+    Nro_Telefono_Titular, Nro_Telefono_Familiar, ID_Localidad_Titular, ID_Localidad_Familiar,       
+    Nom_Calle_Titular, Nom_Calle_Familiar, Nro_Calle_Titular, Nro_Calle_Familiar,
+    Nro_Piso_Titular, Nro_Piso_Familiar, Nro_Depto_Titular, Nro_Depto_Familiar, Email_Titular, Email_Familiar;
+
+
+// Concateno a los Afiliados los datos de los Familiares.
+Concatenate($(vL.QVD))
+LOAD Distinct
+	*
+RESIDENT $(vL.QVD)_Familia;
+	
+DROP TABLE $(vL.QVD)_Familia;
+
+
+// Uno los datos de Localidades.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 LOC_ID 					AS ID_Localidad,
+	 Left(CODIGO_POSTAL,4)		AS CodigoPostal, 
+     LOCALIDAD					AS Nom_Localidad, 
+     PCIA_CODIGO				AS ID_Provincia, 
+     PREFIJO_DDN				AS PrefijoDDN     
+//     LOC_VALIDA
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_LOCALIDADES.qvd] (qvd);
+
+
+// Uno los datos de Provincias.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 CODIGO					AS ID_Provincia, 
+     NOMBRE					AS Nom_Provincia, 
+     DESCRIPCION			AS Dsc_Provincia, 
+     PAIS_CODIGO			AS ID_Pais
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PROVINCIAS.qvd] (qvd);
+
+
+// Uno los datos de Planes de Cobertura.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 PLAN_CODIGO					AS ID_Plan, 
+     CPLAN							AS PlanCopago, 
+     Credencial						AS PlanCredencial, 
+     Reintegro						AS PlanReintegro, 
+     Modelo							AS PlanModelo, 
+     Credencial_Equivalente			AS CredencialEquivalente
+FROM [$(vG.SharedCustomPath)\1.Archivos\Planes Credenciales.xls]
+(biff, embedded labels, table is Sheet1$);
+//FROM [..\..\..\DATA\AUXILIARES\QVD\DATA_AUXILIAR_FUENTES_PLANES_CREDENCIALES.qvd] (qvd);
+
+
+// Uno los datos de Obras Sociales.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 CODIGO			AS ID_ObraSocial, 
+     NOMBRE			AS Nom_ObraSocial,     
+     OSOC_TYPE 		AS TipoObraSocial
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_OBRAS_SOCIALES.qvd] (qvd);
+
+
+// Busco el Tipo y Nro. de Documento.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 AFI_AFI_ID		AS ID_Afiliado,
+	 TDOC_TIPO		AS TipoDocumento, 
+     NUMERO 		AS Nro_Documento     
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOCUMENTOS_AFILIADO.qvd] (qvd);
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);  
+DROP Table $(vL.QVD);
+///$tab Agencias
+
+LET vL.QVD = 'STG_AFILIADOS_01_AGENCIAS';
+
+
+// Fuente de Oracle.-
+$(vL.QVD):
+LOAD 
+//	 OSOC_CODIGO, 
+     CODIGO																AS %ID_Agencia, 
+     CODIGO																AS ID_Agencia, 
+     CODIGO	& '|' & OSOC_CODIGO											AS %K_ID_Agencia_ObraSocial,
+     NOMBRE																AS Nom_Agencia, //CodigoAgenciaLargo, 
+     DESCRIPCION														AS Agencia, 
+     ESTADO																AS EstadoAgencia, 
+//   FECHA_ACTIVACION, 
+//   TD_CODIGO, 
+     CALLE &' '& NUMERO	 &' '& PISO &' '& DPTO							AS DireccionAgencia,
+//   CALLE, 
+//   NUMERO, 
+//   PISO, 
+//   DPTO, 
+     LOC_LOC_ID															AS ID_LocalidadAgencia, 
+//   OBSERVACIONES, 
+//   USERNAME, 
+//   REFERENCIA_EXTERNA, 
+	 IF(CODIGO = '650863' OR CODIGO = '650753' OR ATRIBUTO_USUARIO_1 = 'FIL', 'FIL', ATRIBUTO_USUARIO_1) 	AS ID_TipoAgencia, 
+     ATRIBUTO_USUARIO_1													AS ID_TipoAgenciaOriginal, 
+     IF(ATRIBUTO_USUARIO_1 = 'CON','Cooperativas No Asociadas a ACA', 
+     	If(ATRIBUTO_USUARIO_1 = 'COOP','Cooperativas Asociadas ACA',
+     		If(ATRIBUTO_USUARIO_1 = 'FIL', 'Filiales', 'Terceros')))	AS TipoAgencia,
+//   ATRIBUTO_USUARIO_2, 
+     ATRIBUTO_USUARIO_3													AS ID_RegionComercial,  // Relación con #lib_valores_permitido_dau where dau_dau_id = 3, campo = VALOR.
+//   ATRIBUTO_USUARIO_4, 
+     IF(CODIGO = '650863' OR CODIGO = '650753' OR ATRIBUTO_USUARIO_1 = 'FIL', CODIGO, ATRIBUTO_USUARIO_5)   AS AgenciaDependenciaFinal, // %ID_Filial.
+     ATRIBUTO_USUARIO_6													AS ID_SubTipoAgencia, 
+//   ATRIBUTO_USUARIO_7, 
+//   ATRIBUTO_USUARIO_8, 
+//   ATRIBUTO_USUARIO_9, 
+//   ATRIBUTO_USUARIO_10, 
+//   ATRIBUTO_USUARIO_11, 
+//   ATRIBUTO_USUARIO_12, 
+//   ATRIBUTO_USUARIO_13, 
+//   ATRIBUTO_USUARIO_14, 
+//   ATRIBUTO_USUARIO_15, 
+//   REFERENCIA_EXTERNA_1, 
+//   REFERENCIA_EXTERNA_2, 
+//   REFERENCIA_EXTERNA_3, 
+//   REFERENCIA_EXTERNA_4, 
+//   REFERENCIA_EXTERNA_5, 
+     ORG_CODIGO															AS RegionAgencia 
+//   EMAIL
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DELEGACIONES_OS.qvd] (qvd);
+
+
+// Modificación LS - 16/08/2016 - La idea es no usar mas este excel y tomar las Regiones Comerciales de la tabla #lib_valores_permitido_dau.
+//// Fuente Excel.-
+//LEFT JOIN($(vL.QVD))
+//LOAD 
+//     NRO								AS %ID_Agencia,  
+//     [Regiones Comerciales]				AS RegionesComercialesAgencia, 
+//     OR									AS OrganizadorAgencia, 
+//     LATITUD_C_							AS LatitudAgencia, 
+//     LONGITUD_C							AS LongitudAgencia, 
+//     [Agencia Dependencia 1] 			AS AgenciaDependencia,
+//     [Filial Dependencia]				AS FilialDependenciaAgencia
+//FROM
+//[..\..\..\DATA\AUXILIARES\QVD\DATA_AUXILIAR_FUENTES_AGENCIAS.qvd] (qvd);
+
+
+// Busco las Regiones Comerciales de las Agencias.
+LEFT JOIN($(vL.QVD))
+LOAD
+     VALOR						AS ID_RegionComercial, 
+     DESCRIPCION				AS Dsc_RegionComercial
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_PERMITIDO_DAU.qvd] (qvd);
+
+
+//// Uno los Teléfonos de las Agencias.
+//LEFT JOIN($(vL.QVD))
+//LOAD 
+//	 TELDEL_ID							AS ID_Telefono, 
+//     TIPO								AS TipoTelefono, 
+//     NUMERO								AS Nro_Telefono, 
+////     DEL_OS_OSOC_CODIGO, 
+//     DEL_OS_CODIGO						AS %ID_Agencia
+//FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TELEFONOS_DELEGACION.qvd] (qvd);
+
+
+
+// Agregamos los Tel pero los pivoteamos.-
+$(vL.QVD)_Tmp:
+NoConcatenate
+LOAD DEL_OS_CODIGO						AS %ID_Agencia, 
+//   TELDEL_ID							AS ID_Telefono, 
+     IF(isnull(TIPO),'TEL',TIPO)		as TipoTelefono, 
+     NUMERO								AS Nro_Telefono 
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TELEFONOS_DELEGACION.qvd] (qvd);
+
+
+// Ordeno.-
+$(vL.QVD)_Tmp2:
+NoConcatenate
+LOAD
+	*
+Resident $(vL.QVD)_Tmp
+Order By %ID_Agencia, TipoTelefono;
+
+DROP Table $(vL.QVD)_Tmp;
+
+
+//Genero Clave.-
+$(vL.QVD)_Tmp3:
+NoConcatenate
+LOAD
+	*,
+	IF(%ID_Agencia & TipoTelefono = Previous(%ID_Agencia & TipoTelefono), peek(Valor)+1, 1)		as Valor
+Resident $(vL.QVD)_Tmp2;
+
+DROP Table $(vL.QVD)_Tmp2;
+
+
+// Armo Clave.-
+$(vL.QVD)_Tmp4:
+NoConcatenate
+LOAD
+	*,
+	TipoTelefono&Valor																		as TipoTel
+Resident $(vL.QVD)_Tmp3;
+
+DROP Table $(vL.QVD)_Tmp3;
+
+
+$(vL.QVD)_Tipos:
+NoConcatenate
+LOAD Distinct 
+	TipoTel
+Resident $(vL.QVD)_Tmp4;
+
+
+		LET VRegistros = FieldValueCount('TipoTel'); 
+		
+		FOR i = 1 to $(VRegistros)
+			
+		LET VCampo =  FieldValue('TipoTel', '$(i)');
+			
+		LEFT JOIN ($(vL.QVD))
+				LOAD 	
+		     			%ID_Agencia, 
+     					Nro_Telefono				AS '$(VCampo)'
+				Resident $(vL.QVD)_Tmp4
+				Where TipoTel = '$(VCampo)';
+
+		NEXT
+		
+DROP Table $(vL.QVD)_Tipos;
+DROP Table $(vL.QVD)_Tmp4; 
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab Tipos Solicitudes
+
+LET vL.QVD = 'STG_AFILIADOS_01_TIPOS_SOLICITUDES';
+
+// Fuente de Oracle.-
+$(vL.QVD):
+LOAD 
+	 ID_TIPO					AS Nro_TipoSolicitud, 
+     DESCRIPCION				AS ID_TipoSolicitud, 
+//     VISIBLE
+	 'LEGALES'					AS Dpto_TipoSolicitud 
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_INC_LEG_TIPOS.qvd] (qvd)
+Where VISIBLE='V';
+
+
+Left Join($(vL.QVD))
+LOAD 
+	 ID_SUBTIPO					AS ID_Subtipo, 
+     DESCRIPCION				AS Dsc_Subtipo, 
+     ID_TIPO					AS Nro_TipoSolicitud
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_INC_LEG_SUBTIPOS.qvd] (qvd);
+
+
+//Left Join($(vL.QVD))
+//LOAD 
+//	 ID_CIERRE					AS ID_Cierre, 
+//     DESCRIPCION				AS Dsc_Cierre, 
+//     ID_TIPO					AS Nro_TipoSolicitud
+//FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_INC_LEG_CIERRE.qvd] (qvd);
+
+
+Concatenate($(vL.QVD))
+LOAD 
+	 TIPO						AS ID_TipoSolicitud, 
+//     DESC_TIPO					AS Dsc_TipoSolicitud, 
+     DPTO						AS Dpto_TipoSolicitud//, 
+//     ORDEN						AS Orden_TipoSolicitud
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SISTEMAS_C_INC_TIPO.qvd] (qvd);
+
+
+Left Join($(vL.QVD))
+LOAD * INLINE [
+    ID_TipoSolicitud, GrupoID, GrupoNombre
+    ACCIÓN AMPARO POR COBERTURA , 1, RECLAMOS JUDICIALES
+    ACCIÓN AMPARO POR AFILIACIONES , 1, RECLAMOS JUDICIALES
+    FALSEAMIENTO DE DDJJ , 3, INTERVENCIONES DIRECTAS
+    DEFENSA DE CONSUMIDOR POR COBERTURA , 2, RECLAMOS ADMINISTRATIVOS
+    DEFENSA DEL CONSUMIDOR POR AFILIACIONES , 2, RECLAMOS ADMINISTRATIVOS
+    DENUNCIA ANTE EL INADI , 2, RECLAMOS ADMINISTRATIVOS
+    DENUNCIA ANTE EL INAES , 2, RECLAMOS ADMINISTRATIVOS
+    DENUNCIA ANTE LA SSSALUD POR COBERTURA , 2, RECLAMOS ADMINISTRATIVOS
+    DENUNCIA ANTE LA SSSALUD POR AFILIACIONES , 2, RECLAMOS ADMINISTRATIVOS
+    JUICIOS LABORALES , 1, RECLAMOS JUDICIALES
+    JUICIOS ORDINARIOS , 1, RECLAMOS JUDICIALES
+    NOTIFICACIÓN VALORIZACIÓN LEY , 3, INTERVENCIONES DIRECTAS
+    PEDIDO DE INFORMES , 5,	OTROS RECLAMOS 
+    GESTIÓN DE PRESTADORES , 5,	OTROS RECLAMOS 
+    RECLAMO POR AFILIACIONES , 3, INTERVENCIONES DIRECTAS
+    RECLAMO POR DEUDA , 3, INTERVENCIONES DIRECTAS
+    RECLAMO POR COBERTURA MÉDICA , 3, INTERVENCIONES DIRECTAS
+    REDACCIÓN/REVISION DE CONTRATOS PRESTACIONALES , , 
+    SECRETARIA DEL TRABAJO , 5,	OTROS RECLAMOS 
+    INSTANCIAS PREJUDICIALES , 4, INSTANCIAS PREJUDICIALES
+    RECLAMOS IMPOSITIVOS , 2, RECLAMOS ADMINISTRATIVOS
+    RESOLUCIÓN 075/98 SSS_SALUD - COBERTURA , 2, RECLAMOS ADMINISTRATIVOS
+    RESOLUCIÓN 075/98 SSS_SALUD - AFILIACIONES , 2, RECLAMOS ADMINISTRATIVOS
+    ASESORAMIENTO INTERO , 5,	OTROS RECLAMOS 
+    TL_ACCION_DE_AMPARO , 1, RECLAMOS JUDICIALES
+    TL_BAJA_FALSEAMIENTO_DDJJ , 3, INTERVENCIONES DIRECTAS
+    TL_DEFENSA_DEL_CONSUMIDOR , 2, RECLAMOS ADMINISTRATIVOS
+    TL_DENUNCIA_INADI , 2, RECLAMOS ADMINISTRATIVOS
+    TL_DENUNCIA_INAES , 2, RECLAMOS ADMINISTRATIVOS
+    TL_DENUNCIA_SSSALUD , 2, RECLAMOS ADMINISTRATIVOS
+    TL_JUICIOS_LABORALES , 1, RECLAMOS JUDICIALES
+    TL_JUICIOS_ORDINARIOS , 1, RECLAMOS JUDICIALES
+    TL_NOTIF_VALORIZACION_LEY , 3, INTERVENCIONES DIRECTAS
+    TL_PEDIDO_DE_INFORMES , 5,	OTROS RECLAMOS 
+    TL_PEDIDO_DE_REINTEGRO , 3, INTERVENCIONES DIRECTAS
+    TL_PRESTADORES , 5,	OTROS RECLAMOS 
+    TL_RECLAMO_AFILIACIONES , 3, INTERVENCIONES DIRECTAS
+    TL_RECLAMO_DEUDAS , 3, INTERVENCIONES DIRECTAS
+    TL_RECLAMO_POR_COBERTURA , 3, INTERVENCIONES DIRECTAS
+    TL_RECLAMO_POR_FERTILIZACION , 3, INTERVENCIONES DIRECTAS
+    TL_REDACCION_CONTRATOS , 5,	OTROS RECLAMOS 
+    TL_SECRETARIA_TRABAJO , 4, INSTANCIAS PREJUDICIALES
+];
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Tipos de Eventos Médicos
+
+LET vL.QVD = 'STG_AFILIADOS_01_TIPOS_EVENTOS_MEDICOS';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD CODIGO							AS ID_TipoEventoMedico, 
+     NOMBRE							AS Nom_TipoEventoMedico, 
+     DESCRIPCION					AS Dsc_TipoEventoMedico, 
+     DE_SEGUIMIENTO					AS Flag_DeSeguimiento, 
+     CONTEXTO						AS Contexto, 
+     SISTEMA						AS Sistema, 
+     TEXTO							AS Texto, 
+//     PROC_PROC_ID					AS ID_Proceso, 
+     CANTIDAD_COPIAS_INTERNAS		AS Ctd_CopiasImpresion, 
+     ARCHIVO_IMPRESION				AS ArchivoImpresion, 
+     IMPRESORA						AS Impresora, 
+//     VISTA_PREVIA, 
+     OBSERVACIONES					AS Obs_TipoEventoMedico, 
+     CRONICO						AS Flag_Cronico
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TIPOS_EM.qvd] (qvd);
+
+
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Geo Localidades
+
+LET vL.QVD = 'STG_AFILIADOS_01_GEO_LOCALIDADES';
+
+// Fuente de Oracle.-
+$(vL.QVD):
+LOAD 
+	 PAIS						AS ID_Pais, 
+     ID_GEO						AS ID_GeoLocalidad, 
+//     ISO2, 
+     PROVINCIA					AS Nom_Provincia, 
+     ZIP, 
+     LOCALIDAD					AS Nom_Localidad, 
+     LAT						AS Latitud_Localidad, 
+     LNG						AS Longitud_Localidad, 
+//     TZ, 
+//     UTC, 
+//     DST, 
+     LOC_ID						AS ID_Localidad//, 
+//     OBS
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_ACA_GEOPC.qvd]
+(qvd);
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Tiempo
+LET vL.QVD = 'STG_AFILIADOS_01_TIEMPO';
+
+// Armo el calendario Año Actual + Dos Años Anteriores
+FOR i = 1 TO 10
+LET curYear    = Year(Today())-10 + ($(i));
+LET StartDate  = makedate(curYear);            //Devuelve el primer dia del Año
+LET YearEnd    = yearend(StartDate);    
+//Calcula el numero de dias del AÑO
+LET TotalDays = (YearEnd - StartDate) + 2;
+
+//Crea un calendario temporal
+TempCalendar:
+LOAD 
+	date('$(StartDate)' + recno() - 1, 'DD/MM/YYYY') 			AS PeriodDate
+	AUTOGENERATE(TotalDays - 1);
+NEXT
+
+$(vL.QVD):
+LOAD
+	PeriodDate                                                  AS %ID_Fecha,
+	Year(PeriodDate)                                            AS Año,
+	'S' & ceil(Month(PeriodDate) / 6)                     		AS Semestre,
+	'Q' & ceil(Month(PeriodDate) / 3)                     		AS Trimestre,
+	Month(PeriodDate)                                           AS Mes,
+	month(PeriodDate) & '/' & year(PeriodDate)     				AS PeriodoLargo,
+	(year(PeriodDate)*100) + month(PeriodDate)     				AS Periodo,
+	WeekDay(PeriodDate)                                   		AS DiaDeLaSemana,
+
+//Arreglo las semanas 52/53 de Enero y 1 de Diciembre. Enero arrancara desde la semana CERO y Diciembre tendra la semana 53
+     IF(Month(PeriodDate) = 1 AND Week(PeriodDate) >50,
+//THEN
+                    0,
+//ELSE
+                    IF(Month(PeriodDate) = 12 AND Week(PeriodDate) = 1,
+//THEN
+                           53,
+//ELSE
+                           Week(PeriodDate)))                                                                                   AS Semana,
+                           
+		autonumber(month(PeriodDate) & year(PeriodDate))                                              							AS NumMes,
+		autonumber(day(PeriodDate) & month(PeriodDate) & year(PeriodDate), 'D1')  												AS NumDia,   
+		Day(PeriodDate)                                                                                                  		AS Dia,
+		IF(num(Month(PeriodDate))<=6,'Ej '& (Year(PeriodDate)-1) &'/'& Year(PeriodDate), 'Ej '& Year(PeriodDate) &'/'& (Year(PeriodDate)+1)) AS Ejercicio
+RESIDENT TempCalendar
+WHERE Year(PeriodDate) >= 1980;
+
+
+//left join($(vL.QVD))
+//LOAD 
+//	YEAR(Periodo)*100+MONTH(Periodo)   as Periodo,
+//	Ejercicio     
+////  IDPeriodo, 
+////  ContratoTabaco
+//FROM [..\..\..\ADG_FILES\Ejercicios.xls]
+//(biff, embedded labels, table is Hoja1$);
+
+
+DROP TABLE TempCalendar;
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP TABLE $(vL.QVD);
+///$tab Empresas
+
+LET vL.QVD = 'STG_AFILIADOS_01_EMPRESAS';
+
+
+// Levanto los datos de los Empleadores.
+$(vL.QVD):
+LOAD CODIGO							AS %ID_Empresa, 
+	 CODIGO							AS ID_Empresa, 
+     NOMBRE							AS Nom_Empresa, 
+     DESCRIPCION					AS Dsc_Empresa, 
+//     CUIT							AS Cuit, 
+//     ESTADO							AS Estado, 
+//     Date(FECHA_ACTIVACION)			AS FechaActivacion, 
+//     Date(FECHA_MINIMA_VIGENCIA) 	AS FechaMinVigencia, 
+//     Date(FECHA_MAXIMA_VIGENCIA)	AS FechaMaxVigencia, 
+     GREM_CODIGO					AS %ID_GrupoEmpresa, 
+//     AGEM_CODIGO					AS ID_Agencia, 
+//     NO_EMITIR_CREDENCIALES			AS F_NoEmitirCredenciales, 
+//     BAJA_TIPIFICADA				AS F_BajaTipificada, 
+//     ES_SUJETO_FACTURACION			AS F_EsSujetoFacturacion, 
+//     OBSERVACIONES					AS Observaciones, 
+//     CODIGO_FINANCIERO				AS ID_Financiero,	 
+//     SOLEMP_SOLEMP_ID				AS ID_SolEmp, 
+     //EMPL_ID						AS ID_Empl, //Idem a ID_Empleador.
+     EMPL_TYPE						AS ID_TipoEmpresa, 
+//     REFERENCIA_EXTERNA				AS ReferenciaExterna, 
+     ESTADO_EMPLEADOR				AS EstadoEmpresa//, 
+//     FECHA_ACTIVACION_EMPLEADOR		AS FechaActivacionEmpleador, 
+//     EMAIL							AS Email, 
+//     MESC_CODIGO					AS ID_Mesc,
+//     1 								AS ContadorEmpleador
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EMPLEADORES.qvd] (qvd);
+
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Grupo Empresa
+
+LET vL.QVD = 'STG_AFILIADOS_01_GRUPO_EMPRESA';
+
+// Levanto los datos de los Grupos de Empresas.
+$(vL.QVD):
+LOAD 
+	 CODIGO															AS %ID_GrupoEmpresa, 
+	 CODIGO															AS ID_GrupoEmpresa, 
+     //NOMBRE														AS Nom_GrupoEmpresa, 
+     If(Left(NOMBRE,3) = 'VOL', 
+     	IF(CODIGO <> 14, 'VOLUNTARIOS', 'SEGMENTADOS x EDAD'),
+     	If(Left(NOMBRE,3) = 'OBL', 'OBLIGATORIOS', NOMBRE)) 		AS Nom_GrupoEmpresa,
+     DESCRIPCION													AS Dsc_GrupoEmpresa //, 
+     //CODIGO_FINANCIERO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_GRUPOS_EMPRESA.qvd] (qvd)
+WHERE CODIGO <> 12 AND CODIGO <> 22  // Estos códigos se filtran porque vienen duplicados pero con otro código.
+AND CODIGO <> 89 AND CODIGO <> 86 
+AND CODIGO <> 85 AND CODIGO <> 87 
+AND CODIGO <> 'N/A';
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);  
+DROP Table $(vL.QVD);
+///$tab Controles Auditorias
+
+LET vL.QVD = 'STG_AFILIADOS_01_CONTROLES_AUDITORIA';
+
+// Levanto los datos de los Controles de Auditorías.
+$(vL.QVD):
+LOAD 
+	 CODIGO					AS %ID_CtrlAuditoria, 
+     NOMBRE					AS Nom_CtrlAuditoria, 
+     DESCRIPCION			AS Dsc_CtrlAuditoria, 
+     CAUD_TYPE				AS Tipo_CtrlAuditoria, 
+     MENSAJE_ALERTA			AS Msj_Alerta, 
+     NIVEL_AUDITORIA		AS NivelAuditoria, 
+     NO_AUTORIZA_AFILIADO	AS Flag_NoAutorizaAfiliado, 
+     NO_AUTORIZA_PRESTADOR	AS Flag_NoAutorizaPrestador, 
+     CONSUMO_INVALIDO		AS Flag_ConsumoInvalido, 
+     HABILITADO_DEFAULT		AS Flag_HabilitadoDefault, 
+     CONFIGURABLE			AS Flag_Configurable, 
+//     ACAUD_CODIGO, 
+//     CAUD_CODIGO, 
+     FCION_CODIGO			AS ID_Funcion //, 
+//     USR_USERNAME			AS Nom_Usuario
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_CONTROLES_AUDITORIA.qvd] (qvd);
+
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd); 
+DROP Table $(vL.QVD);
+///$tab Diagnósticos
+//// DESARROLLADO POR: LSEMINO - Fecha de Creación: 13/07/2017.
+//// OBJETIVO: GENERAR UN UNICO QVD CON LOS DATOS COMPLETOS DE LOS DIAGNOSTICOS.
+
+
+LET vL.QVD = 'STG_AFILIADOS_01_DIAGNOSTICOS';
+
+
+// Levanto los datos de las Diagnósticos.
+$(vL.QVD):
+LOAD 
+	 CODIGO				AS %ID_Diagnostico, 
+	 CODIGO				AS ID_Diagnostico, 
+     NOMBRE				AS Nom_Diagnostico, 
+     DESCRIPCION		AS Dsc_Diagnostico, 
+     INSTRUCTIVO		AS Instructivo, 
+     ESTADO				AS EstadoDiagnostico,
+     1					AS ContadorDiagnostico
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DIAGNOSTICOS.qvd] (qvd);
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd); 
+DROP Table $(vL.QVD);
+///$tab Grupos Prestaciones
+//// DESARROLLADO POR: LSEMINO - Fecha de Creación: 13/07/2017.
+//// OBJETIVO: GENERAR UN UNICO QVD CON LOS GRUPOS DE PRESTACIONES.
+
+LET vL.QVD = 'STG_AFILIADOS_01_GRUPOS_PRESTACIONES';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD 	 
+     CODIGO					AS %ID_GrupoPrestacion, 
+     NOMBRE					AS Nom_GrupoPrestacion,      
+     DESCRIPCION			AS Dsc_GrupoPrestacion, 
+     ES_HOJA				AS Flag_EsHoja, 
+     OBSERVACIONES			AS Observaciones, 
+     FAMPRE_CODIGO			AS ID_FamiliaPrestacion,
+     GRUPO					AS GrupoPrestacion, 
+     GPRES_GRUPO_PADRE		AS GrupoPrestacionPadre
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_GRUPOS_PRESTACIONES.qvd] (qvd);
+
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+
+///$tab Tipos Eventos Médicos
+LET vL.QVD = 'STG_AFILIADOS_01_TIPOS_EVENTOS_MEDICOS';
+
+
+// Levanto los datos de los Empleadores.
+$(vL.QVD):
+LOAD 
+	 CODIGO								AS ID_TipoEventoMedico, 
+     NOMBRE								AS Nom_TipoEventoMedico, 
+     DESCRIPCION						AS Dsc_TipoEventoMedico, 
+     DE_SEGUIMIENTO						AS Flag_EventoSeguimiento, 
+     CONTEXTO							AS Contexto_EventoMedico, 
+     SISTEMA							AS Sistema_EventoMedico, 
+//     TEXTO, 
+//     PROC_PROC_ID, 
+//     CANTIDAD_COPIAS_INTERNAS, 
+//     ARCHIVO_IMPRESION, 
+//     IMPRESORA, 
+//     VISTA_PREVIA, 
+//     OBSERVACIONES, 
+     CRONICO							AS Flag_Evento_Cronico
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TIPOS_EM.qvd] (qvd);
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);  
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'STG_AFILIADOS_01_DIMENSIONES'						AS Proceso,
+	'PRD'												AS Entorno
+//	'$(vL.QRegistros)'									AS QRegistros,
+//	'$(vL.QCampos)'										AS QCampos
+//	'$(vL.Tabla)'										AS Tabla,
+//	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

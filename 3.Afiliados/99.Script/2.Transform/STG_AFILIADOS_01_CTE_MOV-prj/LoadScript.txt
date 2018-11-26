@@ -1,0 +1,267 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_01_CTE_MOV';
+
+$(vL.QVD)_tmp:
+NoConcatenate
+LOAD 
+	 DAT_NUMERO																as Nro_DAT, 
+//     SUB_MOD_CODIGO, 
+     TCP_CODIGO																as ID_TCP, 
+     EMP_CODIGO																as ID_Empresa, 
+     MON_CODIGO																as ID_Mon, 
+     CTA_CODIGO																as ID_Cuenta, 
+     DAT_CPR_LETRA															as Letra_Comprobante, 
+//     DAT_CPR_SUC_NUMERO, 
+//     DAT_CPR_NUMERO, 
+//     DAT_VERSION, 
+     DAT_MCA_ANULADO														as Flag_Anulado, 
+//     DAT_MCA_IMPRESO, 
+//     DAT_TIPO_GENERA_MOV, 
+     DAT_FECHA_MOV															as Fecha_Movimiento, 
+//     DAT_MCA_ENTREGADO, 
+//     DAT_MCA_APROBACION, 
+//     DAT_CPR_FECHA_ENTREGA, 
+//     DAT_CANT_CUOTAS, 
+//     DAT_COTIZACION, 
+//     DAT_OC_NUMERO, 
+//     BCO_CODIGO, 
+//     BCS_COD_SUCURSAL, 
+//     EMP_CODIGO_BCT, 
+//     BCT_NUMERO_CUENTA, 
+//     MON_CODIGO_BCT, 
+//     BCT_TIPO_CUENTA, 
+//     EMP_CODIGO_CAJ, 
+//     CAJ_CODIGO, 
+//     EMP_CODIGO_VEC, 
+//     VEC_CODIGO, 
+//     RUV_CODIGO, 
+//     EMP_CODIGO_RUV, 
+//     EMP_CODIGO_NPR, 
+//     NPR_CODIGO, 
+//     PAIS_CODIGO, 
+//     PROV_CODIGO, 
+//     CIVA_CODIGO, 
+//     RIVA_CODIGO, 
+//     RIVA_SECUENCIA, 
+//     RGAN_CODIGO, 
+//     RGAN_SECUENCIA, 
+//     CPA_CODIGO, 
+//     EMP_CODIGO_CPA, 
+     ENT_CODIGO																as ID_Entidad, 
+//     DAT_ENT_SUBCTA, 
+//     ENT_CODIGO_SUBCTA, 
+//     DAT_OBSERVACIONES, 
+     year(DAT_CPR_FECHA_EMISION)*100+Month(DAT_CPR_FECHA_EMISION)			as Periodo, 
+//     ENT_CATEGORIA_IB, 
+//     TCP_CODIGO_CPR_PROV, 
+//     EMP_CODIGO_CPR_PROV, 
+//     DAT_CPR_PROV_SUC_NUMERO, 
+//     DAT_CPR_PROV_LETRA, 
+//     DAT_CPR_PROV_NUMERO, 
+//     EMP_CODIGO_MOV, 
+//     SUB_MOD_CODIGO_MOV, 
+     MOV_TIPO																as Tipo_Movimiento,
+     IF(MOV_TIPO=24 OR MOV_TIPO=74,'V','F')									as Es_Protesis 
+//     MPC_DAT_NUMERO, 
+//     DAT_MCA_IVA_COSTO, 
+//     MPC_ORDEN, 
+//     F_MODI, 
+//     USR_NOMBRE_MODI, 
+//     F_ALTA, 
+//     USR_NOMBRE_ALTA, 
+//     DAT_DIAS_ATRASO, 
+//     DAT_MCA_ANTICIPO, 
+//     DAT_CPR_NUMERO_ORIG, 
+//     DAT_CPR_NUMERO_INI, 
+//     DAT_CPR_NUMERO_INI_ORIG, 
+//     RSP_CODIGO, 
+//     EMP_CODIGO_RSP, 
+//     CONT_CODIGO, 
+//     EMP_CODIGO_CONT, 
+//     DAT_FECHA_CTRL, 
+//     RIB_CODIGO, 
+//     RIB_SECUENCIA, 
+//     DAT_COD_TARJETA, 
+//     DAT_LOTE, 
+//     DAT_COD_AUTORIZACION, 
+//     EMP_CODIGO_ESV, 
+//     ESV_CODIGO, 
+//     DAT_FECHA_DEVENGAMIENTO, 
+//     DAT_ID_EXTERNO, 
+//     DAT_MCA_REUTILIZABLE, 
+//     CING_CODIGO, 
+//     EMP_CODIGO_CING, 
+//     DAT_NUMERO_ORIGINAL, 
+//     DAT_MCA_FACTURA_CREDITO, 
+//     RSU_CODIGO, 
+//     RSU_ITEM, 
+//     DAT_FACRED_LETRA_RECIBO, 
+//     DAT_FACRED_SUC_RECIBO, 
+//     DAT_FACRED_NRO_RECIBO, 
+//     DAT_FACRED_FECHA_RECIBO, 
+//     DAT_AUXCARACTER_06, 
+//     DAT_AUXCARACTER_05, 
+//     DAT_COTIZACION_TRAS, 
+//     DAT_AUXCARACTER_07, 
+//     DAT_PERIODO_FACTURA, 
+//     DAT_AUXNUMERO_01, 
+//     DAT_AUXNUMERO_02, 
+//     DAT_AUXNUMERO_03, 
+//     DAT_AUXNUMERO_04, 
+//     DAT_AUXNUMERO_05, 
+//     DAT_AUXNUMERO_06, 
+//     DAT_AUXNUMERO_07, 
+//     DAT_AUXNUMERO_08, 
+//     DAT_AUXNUMERO_09, 
+//     DAT_AUXNUMERO_10, 
+//     DAT_AUXCARACTER_01, 
+//     DAT_AUXCARACTER_02, 
+//     DAT_AUXCARACTER_03, 
+//     DAT_AUXCARACTER_04, 
+//     DAT_AUXCARACTER_08, 
+//     DAT_AUXCARACTER_09, 
+//     DAT_AUXCARACTER_10, 
+//     DAT_AUXFECHA_01, 
+//     DAT_AUXFECHA_02, 
+//     DAT_AUXFECHA_03, 
+//     DAT_AUXFECHA_04, 
+//     DAT_AUXFECHA_05, 
+//     DAT_AUXLONG_01, 
+//     DAT_AUXLONG_02, 
+//     DAT_AUXFLAG_01, 
+//     DAT_AUXFLAG_02, 
+//     DAT_AUXFLAG_03, 
+//     DAT_AUXFLAG_04, 
+//     DAT_CAI_CODIGO, 
+//     DAT_CAI_FECHA_VENC, 
+//     DAT_AUXCARACTER_11, 
+//     DAT_AUXCARACTER_12, 
+//     PFAC_CODIGO, 
+//     DAT_ORDEN, 
+//     MON_CODIGO_OPE, 
+//     DAT_COTIZACION_OPE, 
+//     DAT_CAE_CODIGO, 
+//     DAT_CAE_FECHA_VENC, 
+//     LEY_CODIGO_CAE, 
+//     ENT_DOC_CUIT_GENERICA, 
+//     ENT_TIPO_DOC_GENERICA, 
+//     ENT_RAZON_SOCIAL_GENERICA, 
+//     EMSU_CODIGO, 
+//     CIEP_CODIGO, 
+//     EMPS_CODIGO, 
+//     DAT_SUC_CENTRAL_CODIGO, 
+//     CECO_CODIGO, 
+//     OC_CPR_NUMERO, 
+//     DAT_NRO_PEDIDO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_DATOS.qvd] (qvd)
+Where 
+		DAT_MCA_ANULADO='N' 
+	and (TCP_CODIGO='FA' or TCP_CODIGO='FT' or TCP_CODIGO='FC' or TCP_CODIGO='RPR') 
+	and SUB_MOD_CODIGO='COB' 
+	and SUB_MOD_CODIGO_MOV='COB';
+
+
+
+Left Join ($(vL.QVD)_tmp)
+LOAD 
+	 DAT_NUMERO											as Nro_DAT, 
+//     DET_CUOTA, 
+//     MOV_TIPO, 
+//     SUB_MOD_CODIGO, 
+//     EMP_CODIGO, 
+//     DET_FECHA_VENCIMIENTO, 
+//     DET_FECHA_ESTIM_COBR, 
+     sum(DET_IMPORTE_ORIG)								as Imp_Original, 
+//     DET_REM_SUC_NUMERO, 
+//     DET_IMPORTE_NETO_GRAVADO, 
+//     DET_REM_NUMERO, 
+//     DET_IMPORTE_EXENTO, 
+//     F_ALTA, 
+//     F_MODI, 
+//     USR_NOMBRE_ALTA, 
+//     USR_NOMBRE_MODI, 
+//     DET_MCA_FORM, 
+//     DET_REM_FECHA, 
+//     DET_REM_FECHA_AGENTE, 
+//     DET_REM_NUMERO_AGENTE, 
+//     DET_FECHA_CORTE_DIS, 
+//     ITMFAC_ITEM_NUMERO, 
+//     DET_FECHA_VTO_IMPOSITIVO, 
+//     DET_OBSERVACIONES, 
+//     DET_FECHA_PROX_VTO, 
+//     DET_FECHA_SEGUNDO_VTO, 
+//     DET_IMPORTE_ORIG_SEGUNDO_VTO, 
+     sum(DET_SALDO_ACTUAL)								as Saldo_Actual//, 
+//     DET_MCA_SALDO_CERO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_DETALLES.qvd] (qvd)
+Where 
+	Exists (Nro_DAT, DAT_NUMERO)
+Group by 
+	DAT_NUMERO;
+
+
+$(vL.QVD):
+NoConcatenate
+LOAD
+	Nro_DAT,
+	ID_Entidad,
+	ID_TCP,
+	Tipo_Movimiento,
+	Imp_Original,
+	Saldo_Actual,
+	Es_Protesis,
+	if(Saldo_Actual>0,Periodo,
+		if(ID_TCP='RPR',Periodo,'-'))					as Periodo_Deuda
+Resident $(vL.QVD)_tmp;
+
+
+DROP Table $(vL.QVD)_tmp;
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

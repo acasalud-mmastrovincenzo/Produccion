@@ -1,0 +1,217 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_03_C_INC_0810_REGISTRO';
+
+$(vL.QVD)_tmp:
+NoConcatenate
+LOAD 
+	 Date(FEC_SOLIC,'DD/MM/YYYY')					AS Fecha_Solicitud,
+	 Date(MonthStart(FEC_SOLIC),'DD/MM/YYYY')		AS FechaInicial_Solicitud, 
+     USR											AS Usuario_Solicitud, 
+     DPTO											AS Dpto_Solicitud, 
+     TIPO											AS ID_TipoSolicitud, 
+//     COMPLEJIDAD, 
+     PRIORIDAD										AS Prioridad_Solicitud, 
+     ESTADO											AS Estado_Solicitud, 
+     RESPONSABLE									AS Responsable_Solicitud, 
+     Date(FEC_CIERRE,'DD/MM/YYYY')					AS FechaCierre_Solicitud, 
+////     LINK, 
+     OBS											AS Obs_Solicitud, 
+     ID_INCIDENTE									AS ID_Solicitud, 
+//     DESC_TIPO, 
+     Date(FEC_AUDITORIA,'DD/MM/YYYY')				AS Fecha_Auditoria, 
+     USR_AUDITORIA									AS Usuario_Auditoria, 
+     Date(FEC_VMTO,'DD/MM/YYYY')					AS FechaVencimiento_Solicitud, 
+//     DPTO_AUDITORIA, 
+//     INCIDENTE, 
+//     ID_WEB, 
+//     LOC_ID, 
+     USR_AFI_ID										AS ID_Afiliado, 
+     DPTO_RESP										AS DptoResponsable_Solicitud, 
+     PROYECTO										AS Proyecto_Solicitud, 
+     MAIL1											AS Mail_1_Solicitud, 
+     MAIL2											AS Mail_2_Solicitud, 
+     MAIL3											AS Mail_3_Solicitud, 
+     if(isnull(ENT_CODIGO),'999999',ENT_CODIGO)		AS Titular_Solicitud, 
+     CODIGO											AS Codigo_Solicitud, 
+     VALOR											AS Valor_Solicitud, 
+     MEDIDA_CAUTELAR								AS Flag_MedidaCautelar, 
+     ABOGADO_PAT									AS AbogadoPat_Solicitud, 
+     ABOGADO_ACA									AS AbogadoAca_Solicitud, 
+     TRIBUNAL										AS Tribunal_Solicitud, 
+     AUTO											AS Auto_Solicitud, 
+//     PP_ID, 
+//     SOLAFI_ID, 
+     REINGRESO										AS Flag_Reingreso, 
+     NOTA_IMPRESA									AS Flag_NotaImpresa, 
+//     APR_ID, 
+     Date(FECHA_NOTA_IMPRESA,'DD/MM/YYYY')			AS FechaNotaImpresa, 
+//     USR_MODIF, 
+//     FEC_MODIF,     
+     NOTA_VERAZ										AS Flag_EnVeraz, 
+     Date(FECHA_NOTA_VERAZ,'DD/MM/YYYY')			AS FechaEnVeraz, 
+     NOTA_JUDICIAL									AS Flag_EnViaJudicial, 
+     Date(FECHA_NOTA_JUDICIAL,'DD/MM/YYYY')			AS FechaViaJudicial,
+//     CRM_NOMBRE, 
+//     CRM_TELEFONO, 
+//     CRM_EDAD, 
+//     CRM_TIPO_DOC, 
+//     CRM_DOC, 
+//     CRM_EMAIL, 
+//     CRM_ESTADO_CIVIL, 
+//     CRM_CANT_HIJOS_M20, 
+//     CRM_CANT_HIJOS_2125, 
+//     CRM_TIPO_CON, 
+//     CRM_TIPO_AFI, 
+//     CRM_SUELDO_BRUTO, 
+//     CRM_EDAD_CONY, 
+//     CRM_REPLICADO, 
+     SUBTIPO										AS Dsc_Subtipo, 
+     RESOLUCION										AS Dsc_Cierre, 
+     PRESTACION										AS Prestacion,
+     SECTOR_RESPONSABLE								AS Sector_Responsable,
+     RIESGO											AS Riesgo
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_INC_0810_REGISTRO.qvd] (qvd);
+
+
+LEFT JOIN ($(vL.QVD)_tmp)
+LOAD 
+//	 Nro_TipoSolicitud, 
+     ID_TipoSolicitud, 
+     Dpto_TipoSolicitud, 
+//     ID_Subtipo, 
+//     Dsc_Subtipo, 
+//     ID_Cierre, 
+//     Dsc_Cierre 
+	 GrupoID,
+	 GrupoNombre
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_TIPOS_SOLICITUDES.qvd] (qvd);
+
+
+LEFT JOIN ($(vL.QVD)_tmp)
+LOAD 
+//	 ID_Afiliado, 
+//     ID_ObraSocial, 
+//     ID_Parentesco, 
+//     ID_Provincia, 
+//     ID_Localidad, 
+//     ID_Plan, 
+//     ID_Domicilio, 
+//     %ID_Afiliado, 
+     Nro_Grupo											AS Titular_Solicitud, 
+     Nro_Afiliado										AS Titular//, 
+//     Apellido, 
+//     Nombre, 
+//     Nom_AfiliadoCompleto, 
+//     FechaNacimiento, 
+//     Edad, 
+//     GrupoEdad, 
+//     Sexo, 
+//     ID_Agencia, 
+//     EstadoCivil, 
+//     FechaAlta, 
+//     FechaAltaAdmin, 
+//     AntigAños, 
+//     MotivoBaja, 
+//     Discapacitado, 
+//     Estado, 
+//     Cuit, 
+//     AntiguedadReconocida, 
+//     Observaciones, 
+//     FechaVigencia, 
+//     ID_AfiAfi, 
+//     Aporta, 
+//     Adherente, 
+//     ID_Acti, 
+//     ID_Segmento, 
+//     TitularSiNo, 
+//     TipoAfiliacion, 
+//     Origen, 
+//     Contador, 
+//     Nom_Calle, 
+//     Nro_Calle, 
+//     Nro_Piso, 
+//     Nro_Depto, 
+//     ObservacionesDomicilio, 
+//     ReferenciaExterna, 
+//     ID_Telefono, 
+//     TipoTelefono, 
+//     Nro_Telefono, 
+//     PlanCopago, 
+//     PlanCredencial, 
+//     PlanReintegro, 
+//     PlanModelo, 
+//     CredencialEquivalente, 
+//     CodigoPostal, 
+//     Nom_Localidad, 
+//     PrefijoDDN, 
+//     Nom_Provincia, 
+//     Dsc_Provincia, 
+//     ID_Pais, 
+//     Nom_Parentesco, 
+//     Nom_ObraSocial, 
+//     TipoObraSocial, 
+//     TipoDocumento, 
+//     Nro_Documento, 
+//     Email
+FROM
+[$(vG.TransformPath)\STG_AFILIADOS_02_AFILIADOSTITULARES.qvd]
+(qvd);
+
+
+$(vL.QVD):
+LOAD
+	 *,
+	 If(IsNull(Titular),Titular_Solicitud,Titular)				AS Nro_Afiliado
+Resident $(vL.QVD)_tmp;
+
+DROP TABLE $(vL.QVD)_tmp;
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

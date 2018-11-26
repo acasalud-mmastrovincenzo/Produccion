@@ -1,0 +1,5 @@
+﻿######################################
+#Qué hay de nuevo en la versión 2.0.0?
+######################################
+
+- Migración de aplicación a ambiente QDF

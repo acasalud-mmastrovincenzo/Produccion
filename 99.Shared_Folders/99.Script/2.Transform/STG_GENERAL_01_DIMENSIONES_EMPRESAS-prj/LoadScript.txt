@@ -1,0 +1,373 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab Empresas / Empleadores
+//// DESARROLLADO POR: LSEMINO - Fecha de Creación: 30/05/2016.
+//// OBJETIVO: GENERAR UN UNICO QVD CON LOS DATOS COMPLETOS DE EMPLEADORES/EMPRESAS.
+
+
+LET vL.QVD = 'STG_GENERAL_01_SA_EMPLEADORES';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD 
+	 CODIGO										AS EmpresaID, 
+     NOMBRE										AS Empresa, 
+//     DESCRIPCION, 
+     CUIT										AS EmpresaCUIT, 
+     ESTADO										AS EmpresaEstadoSistema, 
+     FECHA_ACTIVACION							AS EmpresaFechaAltaAdmin, 
+     FECHA_MINIMA_VIGENCIA						AS EmpresaFechaMinimaVigencia, 
+     FECHA_MAXIMA_VIGENCIA						AS EmpresaFechaMaximaVigencia, 
+     GREM_CODIGO								AS GremOriginalID, 
+//     AGEM_CODIGO, 
+//     NO_EMITIR_CREDENCIALES, 
+     BAJA_TIPIFICADA							AS EmpresaBajaTipificada, 
+     ES_SUJETO_FACTURACION						AS EmpresaSujetoFacturacion, 
+//     OBSERVACIONES, 
+//     CODIGO_FINANCIERO,
+     SOLEMP_SOLEMP_ID							AS SolempID, 
+//     EMPL_ID, 
+     EMPL_TYPE									AS EmpresaTipo, 
+//     REFERENCIA_EXTERNA, 
+     ESTADO_EMPLEADOR							AS EmpresaEstado, 
+     FECHA_ACTIVACION_EMPLEADOR					AS EmpresaFechaActivacion 
+//     EMAIL, 
+//     MESC_CODIGO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EMPLEADORES.qvd] (qvd);
+
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DatosAdicionalesEmpleadores
+LET vL.QVD = 'STG_GENERAL_01_SA_DATOS_ADICIONALES_EMPLEADORES';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD 
+//	 TDATMAE_CODIGO, 
+     EMPL_EMPL_ID				AS EmpresaID, 
+     VALOR						AS GremDetalleID
+//     OBSERVACIONES, 
+//     OBJETO
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADICIONALES_EMPLEADOR.qvd]
+(qvd) WHERE TDATMAE_CODIGO ='GREM';
+
+
+//Levanto los nombres de las empresas que agrupan el GREM MENOR.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 CODIGO					 AS GremDetalleID, 
+     NOMBRE					 AS GremDetalle
+    
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EMPLEADORES.qvd]
+(qvd) WHERE EXISTS (GremDetalleID, CODIGO);
+
+
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab Agencias
+LET vL.QVD = 'STG_GENERAL_01_AGENCIAS_EMPLEADORES';
+
+
+// Levanto los datos de las agencias a las que pertenecen cada una de las empresas.
+$(vL.QVD):
+LOAD 
+//	 TDATMAE_CODIGO, 
+     EMPL_EMPL_ID				AS EmpresaID, 
+     VALOR						AS EmpresaAgenciaID
+//     OBSERVACIONES, 
+//     OBJETO
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADICIONALES_EMPLEADOR.qvd]
+(qvd) WHERE TDATMAE_CODIGO ='AG_E';
+
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab GREM
+LET vL.QVD = 'STG_GENERAL_01_SA_GRUPOS_EMPRESA';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD 
+	 CODIGO									as GremOriginalID, 
+     NOMBRE									as GremOriginal, 
+//     DESCRIPCION, 
+     Num(Left(CODIGO_FINANCIERO,2))			as GremCuadranteID,
+     If(Num(Right(CODIGO_FINANCIERO,3))=21, 2 ,Num(Right(CODIGO_FINANCIERO,3)))			as GremID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_GRUPOS_EMPRESA.qvd]
+(qvd);
+
+
+//AGREGO DESCRIPCION DE GREM SINTETIZADO.
+Left Join ($(vL.QVD))
+LOAD * INLINE [
+    GremCuadranteID, GremCuadrante
+    01, Stock
+    02, Activos
+    03, Grupo Asociativo
+    04, Cotización Especial
+];
+
+
+//AGREGO DESCRIPCIÓN DE GREM.
+Left Join ($(vL.QVD))
+LOAD * INLINE [
+    GremID, Grem
+    01, VOLUNTARIOS
+	02, OBLIGATORIOS
+	10, OPCION UP GRADE
+	13, ASOCIACION ODONTOLOGICA SALTEÑA
+	14, PRECIOS INCREMENTALES POR EDAD
+	16, CARTERA FEMEBA 
+	17, PLANES PMO
+	18, CONVENIO MUTUAL HERCULES
+	19, CLISA
+	20, AMS MUTUAL MEDICA BARILOCHE
+	23, PYME INDUBOL
+	30, MCC MINERA SIERRA GRANDE SA
+	31, METRIVE SA
+	41, LA SEGUNDA
+	42, ESCRIBANOS ROSARIO
+	43, ESCRIBANOS CHACO
+	44, NCA
+	45, ECCO
+	47, BOLSA DE COMERCIO
+	48, TABACALEROS
+	49, AFIP
+	51, COOP. ASOC.
+	52, ACA SALUD
+	53, COOP.OBRERA DE CONSUMO Y VIVIENDA
+	54, REGISTRO UNICO DE POSTULANTES 
+	69, ADRA ARGENTINA
+	72, DERIVADOS DE OBRAS SOCIALES
+	73, MAQUINISTAS
+	74, EUROMEDICA
+	77, APSOT
+	78, BAGLEY S.A.
+	79, ALCALIS DE LA PATAGONIA
+	80, INTA
+	81, U.C.E.L.
+	82, QUICKFOOD
+	88, ORGANISMOS PÚBLICOS
+	90, S.A. IMPORT. Y EXPORT. DE LA PATAGONIA
+	91, DISTRIBUIDORES ARCOR
+	92, GRUPO SANATORIO MAPACI
+	93, O.S. UNIVERSIDAD NACIONAL RIO NEGRO (OSUNRN)
+	94, EMPRESA PYME
+	96, GRUPO AFINIDAD
+	97, GRANDES CUENTAS - GESTION COMPARTIDA - AJUSTA POR PARITARIAS
+	98, CONVENIO OSME
+	99, AFILIADOS SIN AGRUPAMIENTO
+	100, SAMA
+];
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab Domicilios
+
+LET vL.QVD = 'STG_GENERAL_01_DOMICILIOS_EMPRESA';
+
+
+$(vL.QVD):
+LOAD 
+	 DOMIEMP_ID				as DomiEmpID, 
+     LOC_LOC_ID				as LocalidadID, 
+     EMPL_EMPL_ID			as EmpresaID, 
+     CALLE					as EmpresaCalle, 
+     NUMERO					as EmpresaNumero, 
+     PISO					as EmpresaPiso, 
+     DPTO					as EmpresaDepto 
+//     OBSERVACIONES, 
+//     REFERENCIA_EXTERNA
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOMICILIOS_EMPRESA.qvd]
+(qvd);
+
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Solicitudes
+//LET vL.QVD = 'STG_GENERAL_01_SOLICITUDES_EMPRESA';
+//
+//
+//$(vL.QVD):
+//LOAD
+////	 VIGENCIA_CREDENCIALES, 
+////     RENOVACION_MASIVA_CREDENCIALES, 
+////     FECHA_RELACIONADA_CREDENCIALES, 
+////     FECHA_VENCIMIENTO_CREDENCIALES, 
+////     IDENTIFICACION_AFILIADOS, 
+////     AFILIADOS_SUJETOS_FACTURACION, 
+////     LIMITE_EDAD, 
+////     PORCENTAJE_LIMITE_EDAD, 
+////     MINIMO_GRUPOS, 
+////     MAXIMO_GRUPOS, 
+////     CANJE, 
+////     PORCENTAJE_CANJE, 
+////     IMPORTE_CANJE, 
+////     OBSERVACIONES, 
+////     FECHA_PRESENTACION, 
+////     FECHA_REGISTRACION, 
+////     FECHA_COMPLETADA, 
+////     TB_CODIGO, 
+////     AA1_CODIGO, 
+////     AA2_CODIGO, 
+////     AA3_CODIGO, 
+////     AA4_CODIGO, 
+////     AA_CODIGO, 
+////     MOTSOL_CODIGO, 
+////     MOTSOL_CODIGO_MODIFICACION, 
+////     MOTSOL_CODIGO_ALTA, 
+////     MOTSOL_CODIGO_BAJA, 
+////     DEL_OS_OSOC_CODIGO, 
+////     VDA_DRV, 
+////     TIPOSA_CODIGO_ALTA, 
+////     TIPOSA_CODIGO_BAJA, 
+//     DEL_OS_CODIGO								AS EmpresaAgenciaID, 
+////     TIPOSA_CODIGO_MODIFICACION, 
+////     VALORES_PERMITIDOS_AA, 
+////     VALORES_PERMITIDOS_AA1, 
+////     VALORES_PERMITIDOS_AA2, 
+////     VALORES_PERMITIDOS_AA3, 
+////     VALORES_PERMITIDOS_AA4, 
+////     SOLEMP_ID, 
+////     RAZON_SOCIAL, 
+////     AUDITORIA, 
+//     CODIGO										AS EmpresaID//, 
+////     GRUPOS
+//FROM [D:\Qlikview\PRD\DATA\ORACLE\QVD\DATA_ORACLE_SALUD_SA_SOLICITUDES_EMPRESAS.qvd] (qvd);
+//
+//
+//STORE $(vL.QVD) into [..\QVD\$(vL.QVD).qvd] (qvd); 
+//DROP Table $(vL.QVD);
+///$tab TABLA
+//
+//// Tomamos las dimensiones a leer en este script.
+//Tablas:
+//NoConcatenate
+//LOAD 
+//	 Upper(Tablas)			AS Tablas, 
+//     Base, 
+//     Etiqueta
+//FROM
+//[..\..\..\CFG\Dimensiones.xlsx]
+//(ooxml, embedded labels, table is Hoja1)
+//Where Not IsNull(Tablas);
+//
+//
+//
+//
+//// Levanto las dimensiones cargadas anteriormente.
+//FOR i = 1 to NoOfRows('Tablas') ;
+//	LET vL.HoraDesde = now();
+//	LET vL.Tabla = Peek('Tablas', $(i)-1, 'Tablas');
+//	LET vL.Base = Peek('Base', $(i)-1, 'Tablas');
+//	LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+//	
+//	
+//	$(vL.QVD):
+//	NoConcatenate
+//	SQL SELECT *
+//	FROM $(vL.Base).$(vL.Tabla);
+//	
+//	
+//	LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+//	LET vL.QCampos = NoOfFields('$(vL.QVD)');
+//		
+//	
+//	STORE $(vL.QVD) into [..\QVD\$(vL.QVD).qvd] (qvd);
+//	DROP Table $(vL.QVD);
+//	
+//	
+//	DetalleTablas:
+//	LOAD
+//		'$(vL.QRegistros)'									AS QRegistros,
+//		'$(vL.QCampos)'										AS QCampos,
+//		'$(vL.Tabla)'										AS Tablas,
+//		'$(vL.QVD)'											AS QVD,
+//		'$(vL.HoraDesde)'									AS FechaHoraDesdeTabla,
+//		Now()												AS FechaHoraHastaTabla,
+//		time(now()-'$(vL.HoraDesde)','hh:mm:ss') 			AS DuracionTabla
+//	AUTOGENERATE 1;
+//NEXT i 
+//
+//
+//
+//
+//
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'STG_GENERAL_01_DIMENSIONES'						AS Proceso,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

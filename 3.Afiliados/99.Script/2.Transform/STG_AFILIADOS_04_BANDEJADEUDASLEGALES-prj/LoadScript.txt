@@ -1,0 +1,270 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_04_BANDEJADEUDASLEGALES';
+
+$(vL.QVD)_tmp1:
+NoConcatenate
+LOAD 
+	 Nro_Afiliado, 
+     ID_Solicitud_Legales, 
+     F_Nota_Ult_Aviso, 
+     F_Comp_Pago_PreVeraz, 
+     F_En_Veraz, 
+     F_Comp_Pago_PreJudicial, 
+     F_En_Judiciales, 
+     F_Pago_Deuda, 
+     Obs_Nota, 
+     Importe_Actual, 
+     Importe_Abonado																								AS Importe_Abonado_TABLA,
+     if(F_Pago_Deuda='N' and (Importe_Abonado=Importe_Actual or isnull(Importe_Abonado)),0,Importe_Abonado)			AS Importe_Abonado,
+     if(F_Pago_Deuda='N' and isnull(Importe_Abonado),'Deuda mayor a 5 años','Deuda Reclamable')						AS Tipo_Deuda, 
+     %ID_Afiliado,
+     F_Rec_Nota_Veraz,
+     if(F_Carta_Documento='S','Recibida',
+     	if(F_Carta_Documento='NR','No Recibida','No Enviada o Sin Registro'))										AS F_Carta_Documento,
+     Capitalize(Motivo_Carta_Documento)																				AS Motivo_Carta_Documento
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_C_SOCIOS_LEGALES.qvd](qvd);
+
+
+Left Join ($(vL.QVD)_tmp1)
+LOAD Distinct 
+	%ID_Afiliado,
+	Sum(1) 										AS Ctd_Solicitudes
+Resident $(vL.QVD)_tmp1
+Group By %ID_Afiliado;
+
+
+Left Join ($(vL.QVD)_tmp1)
+LOAD 
+	 ID_Solicitud								AS ID_Solicitud_Legales,
+	 Titular_Solicitud, 
+     ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     FechaInicial_Solicitud, 
+     Usuario_Solicitud, 
+     Dpto_Solicitud, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     Fecha_Auditoria, 
+     Usuario_Auditoria, 
+     FechaVencimiento_Solicitud, 
+//     DptoResponsable_Solicitud, 
+//     Proyecto_Solicitud, 
+//     Mail_1_Solicitud, 
+//     Mail_2_Solicitud, 
+//     Mail_3_Solicitud, 
+//     Codigo_Solicitud, 
+//     Valor_Solicitud, 
+//     Flag_MedidaCautelar, 
+//     AbogadoPat_Solicitud, 
+//     AbogadoAca_Solicitud, 
+//     Tribunal_Solicitud, 
+//     Auto_Solicitud, 
+//     Flag_NotaImpresa, 
+     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+     FechaViaJudicial//, 
+//     Dsc_TipoSolicitud, 
+//     Dpto_TipoSolicitud, 
+//     Orden_TipoSolicitud, 
+//     Titular, 
+//     Nro_Afiliado
+FROM [$(vG.TransformPath)\STG_AFILIADOS_03_C_INC_0810_REGISTRO.qvd] (qvd)
+Where 
+		ID_TipoSolicitud='CRR_GESTION_DEUDA' 
+	and Exists (ID_Solicitud_Legales,ID_Solicitud);
+
+
+Estado_1:
+NoConcatenate
+LOAD 
+	 ID_Solicitud																					AS ID_Solicitud_Legales, 
+//     Responsable_Solicitud																			AS Responsable_Detalle_Solicitud, 
+//     Fecha_Solicitud,
+     If(Estado_Solicitud='COMPROMISO PAGO PRE-VERAZ',Date(Fecha_Solicitud,'DD/MM/YYYY'),NULL())		AS Fecha_PreVeraz//,
+//	 Estado_Solicitud																				AS Estado_Detalle_Solicitud, 
+//     Obs_Solicitud, 
+//     Informe_Solicitud, 
+//     Flag_Contactado
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_C_INC_0810_ESTADO.qvd] (qvd)
+Where 
+		Estado_Solicitud = 'COMPROMISO PAGO PRE-VERAZ' 
+	and Exists (ID_Solicitud_Legales,ID_Solicitud);
+
+
+Left Join ($(vL.QVD)_tmp1)
+LOAD
+	 ID_Solicitud_Legales,
+	 Fecha_PreVeraz	 
+Resident Estado_1;
+
+
+DROP Table Estado_1;
+
+
+Estado_2:
+NoConcatenate
+LOAD 
+	 ID_Solicitud																					AS ID_Solicitud_Legales, 
+//     Responsable_Solicitud																			AS Responsable_Detalle_Solicitud, 
+//     Fecha_Solicitud,
+     If(Estado_Solicitud='COMPROMISO PAGO PREJUDICIAL',Date(Fecha_Solicitud,'DD/MM/YYYY'),NULL())	AS Fecha_PreJudicial//,
+//	 Estado_Solicitud																				AS Estado_Detalle_Solicitud, 
+//     Obs_Solicitud, 
+//     Informe_Solicitud, 
+//     Flag_Contactado
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_C_INC_0810_ESTADO.qvd] (qvd)
+Where 
+		Estado_Solicitud='COMPROMISO PAGO PREJUDICIAL' 
+	and Exists (ID_Solicitud_Legales,ID_Solicitud);
+ 
+
+Left Join ($(vL.QVD)_tmp1)
+LOAD
+	 ID_Solicitud_Legales,
+	 Fecha_PreJudicial	 
+Resident Estado_2;
+
+
+DROP Table Estado_2;
+
+
+$(vL.QVD)_tmp2:
+NoConcatenate
+LOAD
+	*
+Resident $(vL.QVD)_tmp1
+Order By 
+	%ID_Afiliado, 
+	Nro_Afiliado, 
+	Fecha_Solicitud, 
+	FechaInicial_Solicitud;
+
+
+DROP Table $(vL.QVD)_tmp1;
+
+
+$(vL.QVD)_tmp:
+NoConcatenate
+LOAD 
+	*,
+	If(Ctd_Solicitudes = 1 OR F_Pago_Deuda = 'S', 1,
+		If(%ID_Afiliado = Previous(%ID_Afiliado) AND 
+		  ((F_Pago_Deuda = 'N' AND Previous(F_Pago_Deuda) = 'N') OR (F_Pago_Deuda = 'N' AND Previous(F_Pago_Deuda) = 'S')), 1, 0)) 		AS Correccion_Importe,
+	if(F_Pago_Deuda='S', 'Cancelada',
+		if(Importe_Abonado>0,'Pago Parcial','No Abonada')) AS Estado_Deuda 
+Resident $(vL.QVD)_tmp2;
+
+
+DROP Table $(vL.QVD)_tmp2;
+
+
+Left Join ($(vL.QVD)_tmp)
+LOAD Distinct
+     %ID_Afiliado, 
+     Nom_AfiliadoCompleto
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD)_tmp)
+LOAD 
+	 NOMBRE				as Nom_AfiliadoCompleto, 
+     MOTIVO				as ID_Motivo_Rec_Veraz, 
+     RESULTADO			as Dsc_Motivo_Rec_Veraz
+FROM
+[$(vG.SharedCustomPath)\1.Archivos\6.Legales\Veraz.xls]
+(biff, embedded labels, table is Hoja1$)
+Where 
+		MOTIVO <> 99;
+
+
+DROP Field Nom_AfiliadoCompleto;
+
+
+Left Join ($(vL.QVD)_tmp)
+LOAD 
+////	 [Nro. Afi], 
+     [ID Solicitud]		AS ID_Solicitud_Legales, 
+//     [Deuda Total],
+	 'CD'				AS CartaDocumento
+FROM
+[$(vG.SharedCustomPath)\1.Archivos\6.Legales\Ultimo Aviso.xls]
+(biff, embedded labels, table is CD$);
+
+
+Left Join ($(vL.QVD)_tmp)
+LOAD
+//	 [Nro. Afi], 
+     [ID Solicitud]		AS ID_Solicitud_Legales, 
+//     [Deuda Total]
+	 'Veraz'			AS NotaVeraz
+FROM
+[$(vG.SharedCustomPath)\1.Archivos\6.Legales\Ultimo Aviso.xls]
+(biff, embedded labels, table is [NOTA VERAZ $]);
+
+
+$(vL.QVD):
+NoConcatenate
+LOAD
+	*,
+	if(CartaDocumento='CD','S','N')		AS Flag_CartaDocumento,
+	if(NotaVeraz='Veraz','S','N')		AS Flag_NotaVeraz
+Resident $(vL.QVD)_tmp;
+
+
+DROP Table $(vL.QVD)_tmp;
+DROP Field NotaVeraz, CartaDocumento;
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+
+
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

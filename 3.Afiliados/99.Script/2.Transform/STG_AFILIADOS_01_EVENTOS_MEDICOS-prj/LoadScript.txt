@@ -1,0 +1,116 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+
+LET vL.QVD = 'STG_AFILIADOS_01_EVENTOS_MEDICOS';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD 
+	 EM_ID								AS ID_EventoMedico,	 
+	 MEM_CODIGO							AS ID_Mem, 
+     Date(FECHA_INICIO,'DD/MM/YYYY')	AS FechaInicio, 
+     Date(FECHA_FIN,'DD/MM/YYYY')		AS FechaFin, 
+     TIPO_FECHA_INICIO					AS TipoFechaInicio, 
+     TIPO_FECHA_FIN						AS TipoFechaFin, 
+//     CONS_LUGAR, 
+     DESCRIPCION						AS Dsc_EventoMedico, 
+     NIVEL_COMPLICACION_DIAGNOSTICO		AS NivelComplicacionDiag, 
+     AFI_AFI_ID							AS ID_Afiliado, 
+     DIAG_CODIGO						AS ID_Diagnostico, 
+//     DEL_OS_OSOC_CODIGO, 
+     DEL_OS_CODIGO						AS ID_Agencia, 
+     EFE_CODIGO_RESP					AS ID_EfectorResponsable, 
+     EFE_CODIGO_LUGAR					AS ID_EfectorLugar, 
+     SISTEMA_DETERMINADO				AS SistemaDeterminado, 
+     TEM_CODIGO							AS ID_TipoEventoMedico, 
+     REM_CODIGO							AS ID_Rem,							
+     EFE_CODIGO_SOLIC					AS ID_EfectorSolicitante, 
+     EM_DE_SEGUIMIENTO					AS ID_EvMedDeSeguim, 
+//     EM_EM_ID, 
+     VDA_DRV							AS Vda_Drv, 
+     NOM_PRESTACION						AS Nom_Prestacion, 
+     OBSERVACIONES						AS Obs_EventoMedico, 
+     EMITIDO							AS Flag_Emitido, 
+     Date(FECHA_EMISION,'DD/MM/YYYY')	AS FechaEmision, 
+     GPRES_GRUPO						AS ID_GrupoPrestacion,       
+     APR_APR_ID							AS ID_AutorizacionPrevia, 
+     FEEM_CODIGO//, 
+//     TRANXML_ID_ALTA, 
+//     TRANXML_ID_EGRE, 
+//     TRANXML_ID_ANUL, 
+//     ATRIBUTO_USUARIO_1, 
+//     ATRIBUTO_USUARIO_2, 
+//     ATRIBUTO_USUARIO_3, 
+//     ATRIBUTO_USUARIO_4, 
+//     ATRIBUTO_USUARIO_5, 
+//     ATRIBUTO_USUARIO_6, 
+//     ATRIBUTO_USUARIO_7, 
+//     ATRIBUTO_USUARIO_8, 
+//     ATRIBUTO_USUARIO_9, 
+//     ATRIBUTO_USUARIO_10, 
+//     ATRIBUTO_USUARIO_11, 
+//     ATRIBUTO_USUARIO_12, 
+//     ATRIBUTO_USUARIO_13, 
+//     ATRIBUTO_USUARIO_14, 
+//     ATRIBUTO_USUARIO_15, 
+//     REFERENCIA_EXTERNA_1, 
+//     REFERENCIA_EXTERNA_2, 
+//     REFERENCIA_EXTERNA_3, 
+//     REFERENCIA_EXTERNA_4, 
+//     REFERENCIA_EXTERNA_5, 
+//     USER_INSERT, 
+//     FECHA_INSERT, 
+//     USER_UPDATE, 
+//     FECHA_UPDATE
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EVENTOS_MEDICOS.qvd] (qvd);
+
+
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

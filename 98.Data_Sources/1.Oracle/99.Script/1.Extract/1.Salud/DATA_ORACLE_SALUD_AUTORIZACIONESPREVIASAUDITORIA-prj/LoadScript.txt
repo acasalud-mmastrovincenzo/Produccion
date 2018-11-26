@@ -1,0 +1,105 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'AUTORIZACIONESPREVIASAUDITORIA';
+LET vL.Base = 'SALUD';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+
+$(vL.QVD):
+NoConcatenate
+SELECT DISTINCT AUT.APR_ID,
+       TO_CHAR(AUT.FECHA,'DD/MM/YYYY') FECHA_AUT,
+       AUT.DEL_OS_CODIGO AGENCIA,
+	   AGEN.NOMBRE NOM_AGEN,
+       CA.AFI_AFI_ID AFI_ID,
+       CA.PCA_ID,
+       aut.diag_codigo,
+       DIAG.NOMBRE NOM_DIAG,
+       CA.TIPO_PRESTACION,
+       CA.NOM_PRESTACION_PDH,
+       ca.grupo_autorizprev GRUPO,
+       GRU.NOMBRE NOM_GRU,
+       CA.DESCRIPCION ,
+       CA.ANULADO,
+       CA.VDA_DRV_ESTADO_AUDITORIA,
+       APP.NOMBRE NOM_ESTADO,
+       ALER.CAUD_CODIGO,AUD.NOMBRE,AUD.MENSAJE_ALERTA,
+       aler.fecha_lectura,
+       aler.usr_username_auditor_lee,
+       aler.fecha_resolucion,
+       aler.usr_username_auditor_resuelve
+FROM 
+	SA_AUTORIZACIONES_PREVIAS AUT,
+	SA_PRESTACIONES_CA CA,
+	SA_ALERTAS_CA ALER,
+	SA_CONTROLES_AUDITORIA AUD,
+	SA_GRUPOS_PRESTACIONES GRU,
+	LIB_VALORES_DOMINIO_APP APP,
+	SA_DELEGACIONES_OS AGEN,
+	SA_DIAGNOSTICOS DIAG
+WHERE 
+		AUT.FECHA >= to_date('11/04/2016','dd/mm/yyyy') 
+	AND CA.APR_APR_ID = AUT.APR_ID
+	AND CA.PCA_ID = ALER.PCA_PCA_ID
+	AND ALER.CAUD_CODIGO = AUD.CODIGO
+	AND ca.vda_drv_estado_auditoria = APP.DRV
+	and ca.grupo_autorizprev = gru.grupo
+	and ca.pca_type = 'PCAP'
+	AND aut.vda_drv_conexion = 'CX--MOST'
+	AND aut.vda_drv_estado <> 'CA----N'
+	AND AUD.FCION_CODIGO = 'AM'
+	AND CA.ANULADO = 'F'
+	AND AUT.DEL_OS_CODIGO = AGEN.CODIGO
+	AND AUT.DIAG_CODIGO = DIAG.CODIGO
+ORDER BY 
+	AUT.APR_ID;
+
+//FROM $(vL.Base).$(vL.Tabla); COMO ES UNA QUERY PARA TRAER EXCLUSIVAMENTE LAS TRANSACCIONES DE PRESTACIONES ONLINE EL "FROM" NO SE UTILIZA.
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

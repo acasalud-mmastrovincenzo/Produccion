@@ -1,0 +1,82 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+
+LET vL.QVD = 'STG_AFILIADOS_04_LLAMADAS_0810';
+
+$(vL.QVD):
+NoConcatenate
+LOAD 
+     ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+//     FechaInicial_Solicitud, 
+     Usuario_Solicitud					AS Entidad, 
+     Dpto_Solicitud						AS Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Usuario_Auditoria					AS Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     Flag_Reingreso, 
+     Flag_NotaImpresa, 
+     FechaNotaImpresa, 
+     Flag_EnVeraz, 
+     FechaEnVeraz, 
+     Flag_EnViaJudicial, 
+     FechaViaJudicial, 
+     Dpto_TipoSolicitud,
+     ID_Afiliado
+FROM [$(vG.TransformPath)\STG_AFILIADOS_03_C_INC_0810_REGISTRO.qvd] (qvd)
+Where (ID_Solicitud like 'CRR*' or ID_Solicitud like 'CDC*' or ID_Solicitud like 'RQM*' or ID_Solicitud like 'BCK*')
+and ID_TipoSolicitud <> 'CONSULTA_NO_ASOCIADO'
+and Usuario_Solicitud <> '0';
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+
+
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

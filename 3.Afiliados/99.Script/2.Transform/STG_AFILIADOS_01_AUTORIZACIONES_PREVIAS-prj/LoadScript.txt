@@ -1,0 +1,140 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+
+LET vL.QVD = 'STG_AFILIADOS_01_AUTORIZACIONES_PREVIAS';
+
+$(vL.QVD):
+NoConcatenate
+LOAD 
+	 APR_ID								AS %ID_AutorizacionPrevia, 
+	 AFI_AFI_ID							AS ID_Afiliado, 
+//	 CONS_PRES_EFE_CODIGO_LUGAR, 
+//     CONS_SECUENCIA_LUGAR, 
+	 DEL_OS_CODIGO & '|' & DEL_OS_OSOC_CODIGO	AS %K_ID_Agencia_ObraSocial,
+//     DEL_OS_OSOC_CODIGO, 
+//     DEL_OS_CODIGO, 
+     DIAG_CODIGO						AS %ID_Diagnostico, 
+     EM_EM_ID							AS ID_EventoMedico, 
+     EFE_CODIGO_PRESCRIPTOR				AS ID_Prescriptor, 
+     Date(FECHA, 'DD/MM/YYYY')			AS FechaAutorizPrev, 
+     Date(FECHA_PRESCRIPCION, 'DD/MM/YYYY')		AS FechaPrescripcion, 
+     PRES_EFE_CODIGO					AS ID_Prestador,      
+     VDA_DRV_ESTADO						AS ID_EstadoAP,           
+//     CONS_PRES_EFE_CODIGO, 
+//     CONS_SECUENCIA, 
+     OBSERVACIONES						AS Obs_AutorizPrev, 
+     VDA_DRV_CONEXION					AS ID_ViaIngreso,      
+     VDA_DRV_SUJETO_FACTURACION			AS ID_SujetoFacturacion, 
+     VDA_DRV_EMITE_COMPROBANTE			AS ID_EmiteComprobante, 
+     VDA_DRV_LUGAR_PAGO					AS ID_LugarPago, 
+//     RECETA, 
+     TRANXML_ID_ALTA					AS ID_TransaccXmlAlta, 
+     TRANXML_ID_ANUL					AS ID_TransaccXmlAnulacion, 
+     EM_EM_ID_SEGUIMIENTO				AS ID_EvMedSeguimiento, 
+//     TBEX_TBEX_ID, 
+     TIPO_MAT_PRESCRIPTOR				AS TipoMatriculaPrescriptor, 
+     PROVINCIA_MAT_PRESCRIPTOR			AS ID_ProvinciaMatriculaPrescriptor, 
+     NUMERO_MAT_PRESCRIPTOR				AS Nro_MatriculaPrescriptor, 
+     DOMICILIO_ENTREGA					AS DomicilioEntrega, 
+//     APR_APR_ID_GEN_REPETICION, 
+     USER_INSERT						AS Nom_UsuarioAlta, 
+     Date(FECHA_INSERT, 'DD/MM/YYYY')	AS FechaAlta, 
+     USER_UPDATE						AS Nom_UsuarioModif, 
+     Date(FECHA_UPDATE, 'DD/MM/YYYY')	AS FechaModif, 
+     USER_ANULA							AS Nom_UsuarioAnula, 
+     Date(FECHA_ANULA, 'DD/MM/YYYY')	AS FechaAnulacion
+//     ACA_MAIL, 
+//     ACA_AGENCIA, 
+//     ACA_MAIL_1, 
+//     ACA_OBS, 
+//     PRIORIDAD							AS Prioridad
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AUTORIZACIONES_PREVIAS.qvd] (qvd);
+
+
+// Busco la Descripción del Estado de la AP.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV			AS ID_EstadoAP, 
+     NOMBRE  		AS Dsc_EstadoAP 
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+// Busco el Nombre de la Via de Ingreso.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV			AS ID_ViaIngreso, 
+     NOMBRE  		AS Dsc_ViaIngreso  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Indica el lugar de pago del cargo al socio.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV			AS ID_LugarPago, 
+     NOMBRE  		AS Dsc_LugarPago  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Indica a quien se le emite el comprobante de pago.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV			AS ID_EmiteComprobante, 
+     NOMBRE  		AS Dsc_EmiteComprobante  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Indica el Sujeto de Facturación del cobro del cargo al socio.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV			AS ID_SujetoFacturacion, 
+     NOMBRE  		AS Dsc_SujetoFacturacion  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

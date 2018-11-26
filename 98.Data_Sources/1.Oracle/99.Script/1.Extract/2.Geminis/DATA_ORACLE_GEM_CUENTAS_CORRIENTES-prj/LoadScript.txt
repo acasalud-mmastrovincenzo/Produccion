@@ -1,0 +1,1167 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'CUENTAS_CORRIENTES';
+LET vL.Base = 'GEMINIS';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Barrido';
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD
+	ASI_CODIGO,
+	CANTIDAD_CUOTA_TASA,
+	CIVA_CODIGO,
+	CIVA_DESCRIPCION,
+	CTA_CODIGO AS CTA_CODIGO_CTE,
+	DAT_COMPROBANTE,
+	DAT_COTIZACION,
+	Date(DAT_FECHA_EMISION,'DD/MM/YYYY') as DAT_FECHA_EMISION,
+	Date(DAT_FECHA_MOV,'DD/MM/YYYY') as DAT_FECHA_MOV,
+	DAT_NUMERO,
+	DAT_OBSERVACIONES,
+	ENT_CUIT,
+	ENT_NO_PROV_CODIGO,
+	ENT_NO_PROV_DESCRIPCION,
+	IMPORTE,
+	ITEM_CODIGO,
+	ITEM_DESCRIPCION,
+	MON_CODIGO,
+	MON_DESCRIPCION,
+	MON_SIGNO,
+	MOV_DESCRIPCION,
+	MOV_TIPO,
+	PRECIO_UNITARIO,
+	TCP_CODIGO,
+	TCP_DESCRIPCION,
+	PRY_CODIGO_NIV_1,
+	PRY_CODIGO_NIV_2,
+	PRY_CODIGO_NIV_3,
+	PRY_CODIGO_NIV_4,
+	PRY_CODIGO_NIV_5,
+	PRY_CODIGO_NIV_6,
+	PRY_CODIGO_NIV_7,
+	PRY_CODIGO_NIV_8,
+	PRY_CODIGO_NIV_9,
+	PRY_CODIGO_NIV_10,
+	PRY_COD_NIVELES,
+	PRY_DESCRIPCION,
+	PROV_CODIGO,
+	PAIS_CODIGO,
+	CODP_CODIGO,
+	CIU_CODIGO,
+	CIU_NOMBRE ,
+	BCO_CODIGO,
+	BCO_DESCRIPCION,
+	NRO_CTA_BANCO
+;
+/* Select cte_mov_detalles (cuenta tipo mov) para cptes en submodulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    'TOTAL COMPROBANTE'                                ITEM_CODIGO,
+    'TOTAL COMPROBANTE'                                ITEM_DESCRIPCION,
+    DAT.CTA_CODIGO                                CTA_CODIGO,
+    DET.DET_CUOTA                                 CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                                  PRECIO_UNITARIO,
+    DET.DET_IMPORTE_ORIG                  IMPORTE,
+    ASISUB.ASI_CODIGO                            ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_DETALLES    DET,
+    CCP_ASI_SUBMODULOS    ASISUB,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = DET.DAT_NUMERO
+AND   DAT.DAT_NUMERO = ASISUB.ASI_ORIGEN
+AND   ASISUB.ASI_CODIGO IS NOT NULL
+AND   ASISUB.ASI_SUB_ESTADO = 0
+/* Para que no muestre los asientos de Entrega de OP */
+AND   ASISUB.ASI_SUB_LEYENDA not like 'Entrega%'
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+AND   (EXISTS (SELECT 1 FROM CTE_MOV_ITM_FACTURAS ITMFAC
+		  WHERE ITMFAC.DAT_NUMERO = DAT.DAT_NUMERO)
+or   EXISTS (SELECT 1 FROM CTE_MOV_PAGO_COBROS MPC
+		  WHERE MPC.DAT_NUMERO = DAT.DAT_NUMERO)
+or   EXISTS (SELECT 1 FROM CTE_MOV_IMPUESTOS IMP
+		  WHERE IMP.DAT_NUMERO = DAT.DAT_NUMERO))		  
+	 
+	 
+UNION ALL
+/* Select cte_mov_itm_facturas para cptes en submodulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    ITM.STK_CODIGO                                ITEM_CODIGO,
+    STK.STK_DESCRIPCION                                ITEM_DESCRIPCION,
+    ITM.CTA_CODIGO                                CTA_CODIGO,
+    ITM.ITMFAC_CANTIDAD                         CANTIDAD_CUOTA_TASA,
+    ((DECODE(SCO.SCO_SIGNO,'-',-1,1) * ITM.ITMFAC_PRECIO_UNITARIO)  * -1)                                PRECIO_UNITARIO,
+    ((ITM.ITMFAC_CANTIDAD * DECODE(SCO.SCO_SIGNO,'-',-1,1) * ITM.ITMFAC_PRECIO_UNITARIO)  * -1)           IMPORTE,
+    ASISUB.ASI_CODIGO                            ASI_CODIGO,
+    PRY.CODIGO_NIV_1				 PRY_CODIGO_NIV_1,
+    PRY.CODIGO_NIV_2				 PRY_CODIGO_NIV_2,
+    PRY.CODIGO_NIV_3				 PRY_CODIGO_NIV_3,
+    PRY.CODIGO_NIV_4				 PRY_CODIGO_NIV_4,
+    PRY.CODIGO_NIV_5				 PRY_CODIGO_NIV_5,
+    PRY.CODIGO_NIV_6				 PRY_CODIGO_NIV_6,
+    PRY.CODIGO_NIV_7				 PRY_CODIGO_NIV_7,
+    PRY.CODIGO_NIV_8				 PRY_CODIGO_NIV_8,
+    PRY.CODIGO_NIV_9				 PRY_CODIGO_NIV_9,
+    PRY.CODIGO_NIV_10				 PRY_CODIGO_NIV_10,
+    PRY.PRY_COD_NIVELES				 PRY_COD_NIVELES,
+    PRY.PRY_DESCRIPCION				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_ITM_FACTURAS    ITM,
+    STK_ITEM_STOCKS          STK,
+    CCP_ASI_SUBMODULOS    ASISUB,
+    CTE_SUBMOD_COMPROBANTES     SCO,
+    PRY_VW_PROYECTOS            PRY,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = ITM.DAT_NUMERO
+AND   ITM.STK_CODIGO = STK.STK_CODIGO
+AND   ITM.EMP_CODIGO = STK.EMP_CODIGO
+AND   ITM.PRY_CODIGO = PRY.PRY_CODIGO (+)
+AND   DAT.DAT_NUMERO = ASISUB.ASI_ORIGEN
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   ASISUB.ASI_CODIGO IS NOT NULL
+AND   ASISUB.ASI_SUB_ESTADO = 0
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+
+
+	
+UNION ALL
+
+/* Select cte_mov_impuestos para cptes en submodulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    IMPC.IMP_CODIGO_IMPUESTO                                ITEM_CODIGO,
+    IMP.IMP_NOMBRE_IMPUESTO                                ITEM_DESCRIPCION,
+    IMPC.CTA_CODIGO                                CTA_CODIGO,
+    IMPC.MIM_TASA                         CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                          PRECIO_UNITARIO,
+    ((DECODE(SCO.SCO_SIGNO,'-',-1,1) * IMPC.MIM_IMPORTE)  * -1)                                IMPORTE,
+    ASISUB.ASI_CODIGO                            ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_IMPUESTOS    IMPC,
+    CTE_IMPUESTOS          IMP,
+    CCP_ASI_SUBMODULOS    ASISUB,
+    CTE_SUBMOD_COMPROBANTES	SCO,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = IMPC.DAT_NUMERO
+AND   IMPC.IMP_CODIGO_IMPUESTO = IMP.IMP_CODIGO_IMPUESTO
+AND   DAT.DAT_NUMERO = ASISUB.ASI_ORIGEN
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   ASISUB.ASI_CODIGO IS NOT NULL
+AND   ASISUB.ASI_SUB_ESTADO = 0
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+
+
+
+
+UNION ALL
+
+/* Select cte_mov_pago_cobros para cptes en submodulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                     DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        	  DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                  MOV_TIPO,
+    MOV.MOV_DESCRIPCION                           MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                           TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)               ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                  ENT_CUIT,
+    DAT.CIVA_CODIGO                               CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                         CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                         DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                 MON_SIGNO,
+    MON.MON_DESCRIPCION                           MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    MPAC.MPA_CODIGO                               ITEM_CODIGO,
+    MPA.MPA_DESCRIPCION                           ITEM_DESCRIPCION,
+    MPA.CTA_CODIGO                                CTA_CODIGO,    
+    TO_NUMBER(NULL)                               CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                          	  PRECIO_UNITARIO,
+    (MPAC.MPC_IMPORTE  * -1)                      IMPORTE,
+    ASISUB.ASI_CODIGO                             ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)	PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)	PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    MPAC.BCO_CODIGO                               BCO_CODIGO,
+    BCO.BCO_DESCRIPCION						 	  BCO_DESCRIPCION,
+    MPAC.BCT_NUMERO_CUENTA						  NRO_CTA_BANCO				
+//    MPAC.MPC_FECHA_ENTREGA						  FECHA_ENTREGA,   	
+FROM   CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        	ENT,
+    CTE_NO_PROVEEDORES      NPR,
+    GRL_CON_IVAS        	CIVA,
+    CCP_MONEDAS        		MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES   TCP,
+    CTE_MOV_PAGO_COBROS     MPAC,
+    CTE_MEDIO_PAGOS         MPA,
+    CCP_ASI_SUBMODULOS    	ASISUB,
+    CTE_SUBMOD_COMPROBANTES	SCO,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) 	DOMI,
+    ZIP_CIUDADES 			CIU,
+    CTE_BANCOS				BCO
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = MPAC.DAT_NUMERO
+AND   MPAC.MPA_CODIGO = MPA.MPA_CODIGO
+AND   MPAC.EMP_CODIGO_MPA = MPA.EMP_CODIGO
+AND   MPAC.BCO_CODIGO = BCO.BCO_CODIGO   (+)
+AND   DAT.DAT_NUMERO = ASISUB.ASI_ORIGEN
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   ASISUB.ASI_CODIGO IS NOT NULL
+AND   ASISUB.ASI_SUB_ESTADO = 0
+
+/* Para que no muestre los asientos de Entrega de OP */
+AND   ASISUB.ASI_SUB_LEYENDA not like 'Entrega%'
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+
+
+
+
+UNION ALL
+
+/* Select ccp_ipt_submodulos (imputaciones NP) para cptes en submodulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    'IMPUTACION'                                ITEM_CODIGO,
+    'IMPUTACION'                                ITEM_DESCRIPCION,
+    IPTSUB.CTA_CODIGO                                CTA_CODIGO,
+    TO_NUMBER(NULL)                                 CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                                  PRECIO_UNITARIO,
+    ((DECODE(IPTSUB.IPT_SUB_IMP_DEBE, 0, IPTSUB.IPT_SUB_IMP_HABER, IPTSUB.IPT_SUB_IMP_DEBE * -1))  * -1)                  IMPORTE,
+    ASISUB.ASI_CODIGO                            ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_DETALLES    DET,
+    CCP_ASI_SUBMODULOS    ASISUB,
+    CCP_IPT_SUBMODULOS    IPTSUB,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = DET.DAT_NUMERO
+AND   DAT.DAT_NUMERO = ASISUB.ASI_ORIGEN
+AND   ASISUB.ASI_CODIGO IS NOT NULL
+AND   ASISUB.ASI_SUB_ESTADO = 0
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+AND   ASISUB.ASI_SUB_CODIGO = IPTSUB.ASI_SUB_CODIGO
+AND   ASISUB.EMP_CODIGO = IPTSUB.EMP_CODIGO
+AND   NOT EXISTS (SELECT 1 FROM CTE_MOV_ITM_FACTURAS ITMFAC
+		  WHERE ITMFAC.DAT_NUMERO = DAT.DAT_NUMERO)
+AND   NOT EXISTS (SELECT 1 FROM CTE_MOV_PAGO_COBROS MPC
+		  WHERE MPC.DAT_NUMERO = DAT.DAT_NUMERO)
+AND   NOT EXISTS (SELECT 1 FROM CTE_MOV_IMPUESTOS IMP
+		  WHERE IMP.DAT_NUMERO = DAT.DAT_NUMERO)
+
+UNION ALL
+
+/* Select cte_mov_detalles (cuenta tipo mov) para cptes en modulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    'TOTAL COMPROBANTE'                                ITEM_CODIGO,
+    'TOTAL COMPROBANTE'                                ITEM_DESCRIPCION,
+    DAT.CTA_CODIGO                                CTA_CODIGO,
+    DET.DET_CUOTA                                 CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                                  PRECIO_UNITARIO,
+    DET.DET_IMPORTE_ORIG                    IMPORTE,
+    ASI.ASI_CODIGO                                ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,    
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_DETALLES    DET,
+    CCP_ASIENTOS        ASI,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = DET.DAT_NUMERO
+AND   DAT.DAT_NUMERO = ASI.ASI_ORIGEN
+AND   ASI.ASI_ESTADO = 0
+/* Para que no muestre los asientos de Entrega de OP */
+AND   ASI.ASI_LEYENDA not like 'Entrega%'
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+AND   (EXISTS (SELECT 1 FROM CTE_MOV_ITM_FACTURAS ITMFAC
+		  WHERE ITMFAC.DAT_NUMERO = DAT.DAT_NUMERO)
+or   EXISTS (SELECT 1 FROM CTE_MOV_PAGO_COBROS MPC
+		  WHERE MPC.DAT_NUMERO = DAT.DAT_NUMERO)
+or   EXISTS (SELECT 1 FROM CTE_MOV_IMPUESTOS IMP
+		  WHERE IMP.DAT_NUMERO = DAT.DAT_NUMERO))
+
+
+
+UNION ALL
+
+/* Select cte_mov_itm_facturas para cptes en modulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    ITM.STK_CODIGO                                ITEM_CODIGO,
+    STK.STK_DESCRIPCION                                ITEM_DESCRIPCION,
+    ITM.CTA_CODIGO                                CTA_CODIGO,
+    ITM.ITMFAC_CANTIDAD                         CANTIDAD_CUOTA_TASA,
+    ((DECODE(SCO.SCO_SIGNO,'-',-1,1) * ITM.ITMFAC_PRECIO_UNITARIO)  * -1)                                PRECIO_UNITARIO,
+    ((ITM.ITMFAC_CANTIDAD * DECODE(SCO.SCO_SIGNO,'-',-1,1) * ITM.ITMFAC_PRECIO_UNITARIO)  * -1)          IMPORTE,
+    ASI.ASI_CODIGO                                ASI_CODIGO,
+    PRY.CODIGO_NIV_1				 PRY_CODIGO_NIV_1,
+    PRY.CODIGO_NIV_2				 PRY_CODIGO_NIV_2,
+    PRY.CODIGO_NIV_3				 PRY_CODIGO_NIV_3,
+    PRY.CODIGO_NIV_4				 PRY_CODIGO_NIV_4,
+    PRY.CODIGO_NIV_5				 PRY_CODIGO_NIV_5,
+    PRY.CODIGO_NIV_6				 PRY_CODIGO_NIV_6,
+    PRY.CODIGO_NIV_7				 PRY_CODIGO_NIV_7,
+    PRY.CODIGO_NIV_8				 PRY_CODIGO_NIV_8,
+    PRY.CODIGO_NIV_9				 PRY_CODIGO_NIV_9,
+    PRY.CODIGO_NIV_10				 PRY_CODIGO_NIV_10,
+    PRY.PRY_COD_NIVELES				 PRY_COD_NIVELES,
+    PRY.PRY_DESCRIPCION				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_ITM_FACTURAS    ITM,
+    STK_ITEM_STOCKS        STK,
+    CCP_ASIENTOS        ASI,
+    CTE_SUBMOD_COMPROBANTES     SCO,
+    PRY_VW_PROYECTOS            PRY,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = ITM.DAT_NUMERO
+AND   ITM.STK_CODIGO = STK.STK_CODIGO
+AND   ITM.EMP_CODIGO = STK.EMP_CODIGO
+AND   ITM.PRY_CODIGO = PRY.PRY_CODIGO (+)
+AND   DAT.DAT_NUMERO = ASI.ASI_ORIGEN
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   ASI.ASI_ESTADO = 0
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+
+
+
+UNION ALL
+
+/* Select cte_mov_impuestos para cptes en modulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    IMPC.IMP_CODIGO_IMPUESTO                               ITEM_CODIGO,
+    IMP.IMP_NOMBRE_IMPUESTO                                ITEM_DESCRIPCION,
+    IMPC.CTA_CODIGO                                CTA_CODIGO,
+    IMPC.MIM_TASA                         CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                       PRECIO_UNITARIO,
+    ((DECODE(SCO.SCO_SIGNO,'-',-1,1) * IMPC.MIM_IMPORTE)  * -1)                                IMPORTE,
+    ASI.ASI_CODIGO                                ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_IMPUESTOS    IMPC,
+    CTE_IMPUESTOS     IMP,
+    CCP_ASIENTOS        ASI,
+    CTE_SUBMOD_COMPROBANTES SCO,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = IMPC.DAT_NUMERO
+AND   IMPC.IMP_CODIGO_IMPUESTO = IMP.IMP_CODIGO_IMPUESTO
+AND   DAT.DAT_NUMERO = ASI.ASI_ORIGEN
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   ASI.ASI_ESTADO = 0
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+
+UNION ALL
+
+
+
+/* Select cte_mov_pago_cobros para cptes en modulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                     DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        	  DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                  MOV_TIPO,
+    MOV.MOV_DESCRIPCION                           MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                           TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)     ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                  ENT_CUIT,
+    DAT.CIVA_CODIGO                               CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                         CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                         DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                 MON_SIGNO,
+    MON.MON_DESCRIPCION                           MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    MPAC.MPA_CODIGO                               ITEM_CODIGO,  
+    MPA.MPA_DESCRIPCION                           ITEM_DESCRIPCION,
+    MPA.CTA_CODIGO                                CTA_CODIGO,
+    TO_NUMBER(NULL)                               CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                          	  PRECIO_UNITARIO,
+    (MPAC.MPC_IMPORTE  * -1)                      IMPORTE,
+    ASI.ASI_CODIGO                                ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)      PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	      CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)		  CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 	  CIU_NOMBRE,
+    BCO.BCO_CODIGO							 	  BCO_CODIGO,
+	BCO.BCO_DESCRIPCION						 	  BCO_DESCRIPCION,
+	MPAC.BCT_NUMERO_CUENTA						  NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        	 ENT,
+    CTE_NO_PROVEEDORES       NPR,
+    GRL_CON_IVAS        	 CIVA,
+    CCP_MONEDAS        		 MON,
+    CTE_TIPO_MOVIMIENTOS     MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_PAGO_COBROS      MPAC,
+    CTE_MEDIO_PAGOS          MPA,
+    CCP_ASIENTOS    		 ASI,
+    CTE_SUBMOD_COMPROBANTES	 SCO,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES		CIU,
+    CTE_BANCOS 			BCO
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = MPAC.DAT_NUMERO
+AND   MPAC.MPA_CODIGO = MPA.MPA_CODIGO
+AND   MPAC.EMP_CODIGO_MPA = MPA.EMP_CODIGO
+AND   MPAC.BCO_CODIGO = BCO.BCO_CODIGO   (+)
+AND   DAT.DAT_NUMERO = ASI.ASI_ORIGEN
+AND   DAT.SUB_MOD_CODIGO = SCO.SUB_MOD_CODIGO
+AND   DAT.EMP_CODIGO = SCO.EMP_CODIGO
+AND   DAT.TCP_CODIGO = SCO.TCP_CODIGO
+AND   ASI.ASI_ESTADO = 0
+/* Para que no muestre los asientos de Entrega de OP */
+AND   ASI.ASI_LEYENDA not like 'Entrega%'
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+
+
+UNION ALL
+
+/* Select ccp_imputaciones (imputaciones NP) para cptes en modulo */
+SELECT /*+ RULE */     
+    DAT.DAT_NUMERO                                DAT_NUMERO,
+    DAT.DAT_CPR_FECHA_EMISION                        DAT_FECHA_EMISION,
+    DAT.DAT_FECHA_MOV                        DAT_FECHA_MOV,
+    DAT.MOV_TIPO                                MOV_TIPO,
+    MOV.MOV_DESCRIPCION                            MOV_DESCRIPCION,
+    DAT.TCP_CODIGO                                TCP_CODIGO,
+    TCP.TCP_DESCRIPCION                            TCP_DESCRIPCION,
+    DECODE(DAT.ENT_CODIGO,NULL, DAT.NPR_CODIGO, DAT.ENT_CODIGO)                                ENT_NO_PROV_CODIGO,
+    DECODE(DAT.ENT_CODIGO,NULL, NPR.NPR_DESCRIPCION, ENT.ENT_RAZON_SOCIAL)                    ENT_NO_PROV_DESCRIPCION,
+    ENT.ENT_CUIT                                ENT_CUIT,
+    DAT.CIVA_CODIGO                                CIVA_CODIGO,
+    CIVA.CIVA_DESCRIPCION                            CIVA_DESCRIPCION,
+    DAT.DAT_CPR_LETRA||' '||LTRIM(TO_CHAR(DAT.DAT_CPR_SUC_NUMERO,'0000'))||
+        ' '||LTRIM(TO_CHAR(DAT.DAT_CPR_NUMERO,'00000000'))        DAT_COMPROBANTE,
+    DAT.DAT_OBSERVACIONES                            DAT_OBSERVACIONES,
+    DAT.MON_CODIGO                                MON_CODIGO,
+    MON.MON_SIGNO                                MON_SIGNO,
+    MON.MON_DESCRIPCION                            MON_DESCRIPCION,
+    DAT.DAT_COTIZACION                            DAT_COTIZACION,
+    'IMPUTACION'                                ITEM_CODIGO,
+    'IMPUTACION'                                ITEM_DESCRIPCION,
+    IPT.CTA_CODIGO                                CTA_CODIGO,
+    TO_NUMBER(NULL)                                 CANTIDAD_CUOTA_TASA,
+    TO_NUMBER(NULL)                                  PRECIO_UNITARIO,
+    DECODE(IPT.IPT_IMP_DEBE, 0, IPT.IPT_IMP_HABER  * -1, IPT.IPT_IMP_DEBE)                  IMPORTE,
+    ASI.ASI_CODIGO                                ASI_CODIGO,
+    to_char(null)				 PRY_CODIGO_NIV_1,
+    to_char(null)				 PRY_CODIGO_NIV_2,
+    to_char(null)				 PRY_CODIGO_NIV_3,
+    to_char(null)				 PRY_CODIGO_NIV_4,
+    to_char(null)				 PRY_CODIGO_NIV_5,
+    to_char(null)				 PRY_CODIGO_NIV_6,
+    to_char(null)				 PRY_CODIGO_NIV_7,
+    to_char(null)				 PRY_CODIGO_NIV_8,
+    to_char(null)				 PRY_CODIGO_NIV_9,
+    to_char(null)				 PRY_CODIGO_NIV_10,
+    to_char(null)				 PRY_COD_NIVELES,
+    to_char(null)				 PRY_DESCRIPCION,
+    NVL(NVL(DOMI.PROV_CODIGO, NPR.C_PRV_CODIGO), DAT.PROV_CODIGO)       PROV_CODIGO,
+    NVL(NVL(DOMI.PAIS_CODIGO, NPR.C_PAIS_CODIGO), DAT.PAIS_CODIGO)       PAIS_CODIGO,
+    NVL(DOMI.CODP_CODIGO, NPR.C_POS_CODIGO)	 CODP_CODIGO,
+    NVL(DOMI.CIU_CODIGO, NPR.C_CIU_CODIGO)	 CIU_CODIGO,
+    NVL(DOMI.CIU_NOMBRE, CIU.CIU_NOMBRE)	 CIU_NOMBRE,
+    ''							 BCO_CODIGO,
+	''							 BCO_DESCRIPCION,
+	''						  	 NRO_CTA_BANCO
+FROM    CTE_MOV_DATOS        DAT,
+    ENT_ENTIDADES        ENT,
+    CTE_NO_PROVEEDORES        NPR,
+    GRL_CON_IVAS        CIVA,
+    CCP_MONEDAS        MON,
+    CTE_TIPO_MOVIMIENTOS    MOV,
+    CTE_TIPO_COMPROBANTES    TCP,
+    CTE_MOV_DETALLES    DET,
+    CCP_ASIENTOS        ASI,
+    CCP_IMPUTACIONES        IPT,
+    (select dom.ent_codigo, dom.prov_codigo, dom.pais_codigo, dom.codp_codigo, dom.ciu_codigo, ciu.ciu_nombre
+	from ent_domicilios dom,
+	     zip_ciudades ciu
+	where nvl(dom.sub_codigo, 0) = 0
+	and dom.pais_codigo = ciu.pais_codigo
+	and dom.prov_codigo = ciu.prov_codigo
+	and dom.ciu_codigo = ciu.ciu_codigo
+	and (dom.dom_codigo, ent_codigo) in (select dom2.dom_codigo, dom2.ent_codigo
+	    from ent_domicilios dom2
+	    where dom2.ent_codigo = dom.ent_codigo
+	    and nvl(dom2.sub_codigo,0) = nvl(dom.sub_codigo,0) 
+	    and rownum =1)) DOMI,
+    ZIP_CIUDADES CIU
+WHERE DAT.EMP_CODIGO+0 = 1
+AND   DAT.DAT_MCA_ANULADO = 'N'
+AND   DAT.MON_CODIGO = MON.MON_CODIGO
+AND   DAT.ENT_CODIGO = ENT.ENT_CODIGO (+)
+AND   DAT.NPR_CODIGO = NPR.NPR_CODIGO (+)
+AND   DAT.EMP_CODIGO = NPR.EMP_CODIGO (+)
+AND   DAT.ENT_CODIGO = DOMI.ENT_CODIGO (+)
+AND   NPR.C_PAIS_CODIGO = CIU.PAIS_CODIGO (+)
+AND   NPR.C_PRV_CODIGO = CIU.PROV_CODIGO (+)
+AND   NPR.C_CIU_CODIGO = CIU.CIU_CODIGO (+)
+AND   DAT.EMP_CODIGO = MOV.EMP_CODIGO
+AND   DAT.SUB_MOD_CODIGO = MOV.SUB_MOD_CODIGO
+AND   DAT.MOV_TIPO = MOV.MOV_TIPO
+AND   DAT.EMP_CODIGO = TCP.EMP_CODIGO
+AND   DAT.TCP_CODIGO = TCP.TCP_CODIGO
+AND   DAT.CIVA_CODIGO = CIVA.CIVA_CODIGO (+)
+AND   DAT.DAT_NUMERO  = DET.DAT_NUMERO
+AND   DAT.DAT_NUMERO = ASI.ASI_ORIGEN
+AND   ASI.ASI_ESTADO = 0
+AND   DAT.SUB_MOD_CODIGO||'' = 'PAG'
+AND   DAT.DAT_FECHA_MOV > '31-DEC-2001'
+AND   ASI.ASI_CODIGO = IPT.ASI_CODIGO
+AND   ASI.EMP_CODIGO = IPT.EMP_CODIGO
+AND   NOT EXISTS (SELECT 1 FROM CTE_MOV_ITM_FACTURAS ITMFAC
+          WHERE ITMFAC.DAT_NUMERO = DAT.DAT_NUMERO)
+AND   NOT EXISTS (SELECT 1 FROM CTE_MOV_PAGO_COBROS MPC
+          WHERE MPC.DAT_NUMERO = DAT.DAT_NUMERO)
+AND   NOT EXISTS (SELECT 1 FROM CTE_MOV_IMPUESTOS IMP
+          WHERE IMP.DAT_NUMERO = DAT.DAT_NUMERO)
+ORDER BY 2 DESC,1,22;
+
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

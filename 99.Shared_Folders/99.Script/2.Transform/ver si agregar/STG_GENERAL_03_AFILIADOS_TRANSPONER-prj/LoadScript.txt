@@ -1,0 +1,275 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\1.Application'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab STG_GENERAL_03_AFILIADOS_TRANSPONER
+// DESARROLLADO POR: FBURLON - Fecha de Creación: 12/04/2016.
+// OBJETIVO: Generar un QVD con los diferentes teléfonos en columnas diferentes, no en filas.
+
+
+LET vL.QVD = 'STG_GENERAL_03_AFILIADOS_TRANSPONER';
+
+
+// Levanto los datos de TITULARES.
+$(vL.QVD):  
+NoConcatenate
+LOAD Distinct
+	 PlanID, 
+     ObraSocialID, 
+     ParentescoID, 
+//     AfiliadoTelefonoID, 
+     AfiliadoNro, 
+//     AfiliadoDomicilioID, 
+     AfiliadoID, 
+     GruponNro, 
+     Apellido, 
+     Nombre, 
+     AfiliadoNombre, 
+     FechaNacimiento, 
+     Edad, 
+     GrupoEdad, 
+     Sexo, 
+     AgenciaID, 
+     EstadoCivil, 
+     FechaAlta, 
+     FechaAltaAdmin, 
+     AntigAños, 
+     MotivoBaja, 
+     Discapacitado, 
+     Estado, 
+     Cuit, 
+     AntiguedadReconocida, 
+     Observaciones, 
+     FechaVigencia, 
+     Aporta, 
+     Adherente, 
+     ActividadID, 
+     Segmento, 
+     EmpresaID, 
+     Flag_Titular, 
+     SegmentoTipo, 
+     Mail1, 
+     Contador, 
+     Mail2, 
+     DocumentoTipo, 
+     DocumentoNro, 
+//     AfiliadoLocalidadID, 
+//     AfiliadoCalle, 
+//	 AfiliadoDomicilioNro,
+//     AfiliadoPiso, 
+//     AfiliadoDepartamento, 
+//     AfiliadoDomicilioObs, 
+//     AfiliadoDomicilioTipo, 
+//     AfiliadoTelefonoTipo, 
+//     AfiliadoTelefono, 
+     Parentesco, 
+     ObraSocial, 
+     ObraSocialDsc, 
+     ObraSocialTipo, 
+     ObraSocialAgrupacion, 
+     ObraSocialClase, 
+     Plan, 
+     PlanDsc, 
+     PlanAgrupacion, 
+     PlanModelo, 
+     PlanCredencial, 
+     PlanCoberturaMedicamento, 
+     PlanCoberturaOdontologia
+FROM [$(vG.TransformPath)\STG_GENERAL_02_AFILIADOS_RELLENADO.qvd] (qvd);
+
+
+
+///$tab Teléfonos
+$(vL.QVD)_tmp1:  
+NoConcatenate
+LOAD Distinct
+	 AfiliadoID, 
+     if(isnull(AfiliadoTelefonoTipo),'TEL',AfiliadoTelefonoTipo)											AS AfiliadoTelefonoTipo,
+     AfiliadoTelefono
+FROM [$(vG.TransformPath)\STG_GENERAL_02_AFILIADOS_RELLENADO.qvd] (qvd);
+
+
+$(vL.QVD)_tmp2:  
+NoConcatenate
+LOAD 
+	*
+Resident $(vL.QVD)_tmp1
+Order by AfiliadoID, AfiliadoTelefonoTipo;
+
+
+DROP Table $(vL.QVD)_tmp1;
+
+
+$(vL.QVD)_tmp3:
+NoConcatenate
+LOAD
+	*,
+	IF(AfiliadoID & AfiliadoTelefonoTipo = Previous(AfiliadoID & AfiliadoTelefonoTipo), peek(Valor)+1, 1)		AS Valor
+Resident $(vL.QVD)_tmp2;
+
+
+DROP Table $(vL.QVD)_tmp2;
+
+
+$(vL.QVD)_tmp4:
+NoConcatenate
+LOAD
+	*,
+	AfiliadoTelefonoTipo&Valor																					AS TipoTelefono
+Resident $(vL.QVD)_tmp3;
+
+
+DROP Table $(vL.QVD)_tmp3;
+
+
+$(vL.QVD)_Tipos:
+NoConcatenate
+LOAD Distinct 
+	TipoTelefono
+resident $(vL.QVD)_tmp4;
+
+
+		LET VRegistros = FieldValueCount('TipoTelefono'); 
+		
+		FOR i = 1 to $(VRegistros)
+			
+		LET VCampo =  FieldValue('TipoTelefono', '$(i)');
+			
+		left join($(vL.QVD))
+				LOAD 	
+		     			AfiliadoID, 
+     					AfiliadoTelefono			AS '$(VCampo)'
+				resident $(vL.QVD)_tmp4
+				where TipoTelefono = '$(VCampo)';
+
+		NEXT
+		
+DROP Table $(vL.QVD)_Tipos;
+DROP Table $(vL.QVD)_tmp4; 
+
+///$tab Domicilios
+$(vL.QVD)_tmp1:  
+NoConcatenate
+LOAD Distinct
+//     AfiliadoDomicilioID, 
+     AfiliadoID, 
+     AfiliadoLocalidadID, 
+     AfiliadoCalle&' '&IF(ISNULL(AfiliadoDomicilioNro),'',AfiliadoDomicilioNro)&if(IsNull(AfiliadoPiso),'',' Piso: '&AfiliadoPiso)&if(IsNull(AfiliadoDepartamento),'',' Dpto.: '&AfiliadoDepartamento)	AS AfiliadoDomicilio, 
+//     AfiliadoDomicilioObs, 
+     'Domicilio'					AS AfiliadoDomicilioTipo
+FROM [$(vG.TransformPath)\STG_GENERAL_02_AFILIADOS_RELLENADO.qvd] (qvd);
+
+
+Left Join ($(vL.QVD)_tmp1)
+LOAD 
+     LocalidadID										AS AfiliadoLocalidadID, 
+//     CodigoPostal, 
+     Localidad, 
+     Provincia
+FROM [$(vG.TransformPath)\STG_GENERAL_02_LOCALIDADES.qvd] (qvd);
+
+
+
+EXIT Script;
+$(vL.QVD)_tmp2:  
+NoConcatenate
+LOAD 
+	*
+Resident $(vL.QVD)_tmp1
+Order by AfiliadoID, AfiliadoTelefonoTipo;
+
+
+DROP Table $(vL.QVD)_tmp1;
+
+
+$(vL.QVD)_tmp3:
+NoConcatenate
+LOAD
+	*,
+	IF(AfiliadoID & AfiliadoTelefonoTipo = Previous(AfiliadoID & AfiliadoTelefonoTipo), peek(Valor)+1, 1)		AS Valor
+Resident $(vL.QVD)_tmp2;
+
+
+DROP Table $(vL.QVD)_tmp2;
+
+
+$(vL.QVD)_tmp4:
+NoConcatenate
+LOAD
+	*,
+	AfiliadoTelefonoTipo&Valor																					AS TipoTelefono
+Resident $(vL.QVD)_tmp3;
+
+
+DROP Table $(vL.QVD)_tmp3;
+
+
+$(vL.QVD)_Tipos:
+NoConcatenate
+LOAD Distinct 
+	TipoTelefono
+resident $(vL.QVD)_tmp4;
+
+
+		LET VRegistros = FieldValueCount('TipoTelefono'); 
+		
+		FOR i = 1 to $(VRegistros)
+			
+		LET VCampo =  FieldValue('TipoTelefono', '$(i)');
+			
+		left join($(vL.QVD))
+				LOAD 	
+		     			AfiliadoID, 
+     					AfiliadoTelefono			AS '$(VCampo)'
+				resident $(vL.QVD)_tmp4
+				where TipoTelefono = '$(VCampo)';
+
+		NEXT
+		
+DROP Table $(vL.QVD)_Tipos;
+DROP Table $(vL.QVD)_tmp4;
+///$tab DURACION
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);   
+DROP Table $(vL.QVD);
+
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

@@ -1,0 +1,151 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+// Tomamos las dimensiones a leer en este script.
+Tablas:
+NoConcatenate
+LOAD 
+	 Upper(Tabla)			AS Tabla, 
+     Base, 
+     Esquema,
+     Etiqueta,
+     FechaInsert,
+     FechaUpdate,
+     PrimaryKeyQV,
+     PrimaryKeyBD,
+     PrimaryKeyQVD,
+     PKCompuesta
+FROM $(vG.CustomPath)\Salud_incremental.csv
+(txt, codepage is 1252, embedded labels, delimiter is ',', msq);
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Incremental';
+
+
+let vL.Minimo 	= Timestamp(Timestamp#('00:00am','hh:mmtt'),'hh:mmTT');
+let vL.Maximo 	= Timestamp(Timestamp#('08:00pm','hh:mmtt'),'hh:mmTT');
+let vL.Now  	= Timestamp(now(),'hh:mmTT');
+
+IF  '$(vL.Now)' >= '$(vL.Minimo)' and '$(vL.Now)' < '$(vL.Maximo)' THEN
+	Let vL.ThisExecTime = Date(Date(today()-1) + time('18:30', 'hh:mm'), 'DD/MM/YYYY hh:mm:ss');
+ELSE
+	Let vL.ThisExecTime = Date(Date(today()) 	+ time('18:30', 'hh:mm'), 'DD/MM/YYYY hh:mm:ss');
+ENDIF;
+
+
+Let vL.CantidadDeRegistros = NoOfRows('Tablas');
+// Levanto las dimensiones cargadas anteriormente.
+FOR i = 0 to $(vL.CantidadDeRegistros) -1 ;
+	LET vL.HoraDesde 		= 	now();
+	LET vL.Tabla 			= 	Peek('Tabla', $(i), 'Tablas');
+	LET vL.Base 			= 	Peek('Base', $(i), 'Tablas');
+	LET vL.Esquema 			= 	Peek('Esquema', $(i), 'Tablas');
+	LET vL.FechaInsert 		= 	Peek('FechaInsert', $(i), 'Tablas');
+	LET vL.FechaUpdate 		=	Peek('FechaUpdate', $(i), 'Tablas');
+	LET vL.PrimaryKeyQV 	= 	Peek('PrimaryKeyQV', $(i), 'Tablas');
+	LET vL.PrimaryKeyBD 	= 	Peek('PrimaryKeyBD', $(i), 'Tablas');
+	LET vL.PrimaryKeyQVD 	= 	Peek('PrimaryKeyQVD', $(i), 'Tablas');
+	LET vL.PKCompuesta 		= 	Peek('PKCompuesta', $(i), 'Tablas');
+	LET vL.QVD 				= 	'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+	LET vL.NumeroTabla 		= 	$(i)+1;
+
+	TRACE ;TRACE ;
+	TRACE $(vL.NumeroTabla) / $(vL.CantidadDeRegistros);
+	TRACE '$(vL.QVD)';
+	TRACE -------------------------------------------;		
+	
+	IF '$(PKCompuesta)' then
+		NoConcatenate
+		$(vL.QVD):
+		LOAD
+			*,
+			$(vL.PrimaryKeyQV)	as PRIMARYKEY;
+	ELSE
+		NoConcatenate
+		$(vL.QVD):
+		LOAD
+			*;
+	ENDIF;
+	SQL 
+	SELECT * 
+	FROM $(vL.Esquema).$(vL.Tabla)
+	WHERE nvl(nvl(GREATEST($(vL.FechaUpdate),$(vL.FechaInsert)),$(vL.FechaInsert)), $(vL.FechaUpdate)) >= to_date('$(vL.LastExecTime)', 'DD/MM/YYYY HH24:MI:SS')-1;
+	
+	
+	Concatenate($(vL.QVD))
+	LOAD 
+		*	
+	From $(vG.ExtractPath)\$(vL.QVD).qvd (qvd)
+	WHERE NOT EXISTS($(vL.PrimaryKeyQVD));
+	
+	Inner Join ($(vL.QVD))
+	SQL 
+	SELECT 
+	$(vL.PrimaryKeyBD) 
+	FROM $(vL.Esquema).$(vL.Tabla);
+	
+
+	STORE $(vL.QVD) INTO $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+	
+		//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+
+	DROP Table $(vL.QVD);
+
+	DetalleTablas:
+	LOAD
+		'$(vL.QRegistros)'									AS QRegistros,
+		'$(vL.QCampos)'										AS QCampos,
+		'$(vL.Tabla)'										AS Tablas,
+		'$(vL.QVD)'											AS QVD,
+		'$(vL.HoraDesde)'									AS FechaHoraDesdeTabla,
+		Now()												AS FechaHoraHastaTabla,
+		time(now()-'$(vL.HoraDesde)','hh:mm:ss') 			AS DuracionTabla
+	AUTOGENERATE 1;
+
+NEXT i 
+
+TRACE ;
+TRACE ;
+
+If ScriptErrorCount = 0 then
+	Let vL.LastExecTime = vL.ThisExecTime;
+End If
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	//'$(vL.QRegistros)'									AS QRegistros,
+	//'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	//'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

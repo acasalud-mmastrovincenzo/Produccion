@@ -1,0 +1,129 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab Tabla
+LET vL.QVD = 'STG_AFILIADOS_05_LLAMADAS_0810';
+
+
+NoConcatenate
+Estado_0810_Filiales:
+LOAD 
+	ID_INCIDENTE 		as ID_INCIDENTE_FILIAL,
+	RESPONSABLE 		as RESPONSABLE_ESTADO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_INC_0810_ESTADO.qvd] (qvd);
+
+
+Inner join(Estado_0810_Filiales)
+LOAD
+	USERNAME			as RESPONSABLE_ESTADO,
+	ORGA_CODIGO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_USUARIOS.qvd] (qvd)
+WHERE ORGA_CODIGO = 'FILIALES';
+
+
+NoConcatenate
+Estado_0810_MPUCCIO_NoFilial:
+LOAD
+	ID_INCIDENTE 			as ID_ESTADO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_INC_0810_ESTADO.qvd] (qvd)
+WHERE RESPONSABLE = 'MPUCCIO'
+	and Not (Exists(ID_INCIDENTE_FILIAL, ID_INCIDENTE));
+
+DROP TABLE Estado_0810_Filiales;
+
+
+NoConcatenate
+$(vL.QVD):
+LOAD 
+     ID_Solicitud, 
+	-Exists(ID_ESTADO,ID_Solicitud) 		AS Retenido
+FROM [$(vG.TransformPath)\STG_AFILIADOS_04_LLAMADAS_0810.qvd] (qvd)
+WHERE
+	wildmatch(ID_Solicitud,'CRR-*')
+	and ID_TipoSolicitud = 'CRR_BAJA'
+	and Estado_Solicitud = 'FINALIZADO';
+	
+	
+DROP TABLE Estado_0810_MPUCCIO_NoFilial;
+
+RENAME Table $(vL.QVD) TO $(vL.QVD)_TEMP;
+
+NoConcatenate
+$(vL.QVD):
+LOAD
+	ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     Entidad, 
+     Tipo_Entidad, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Receptor_Solicitud, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     Flag_Reingreso, 
+     Flag_NotaImpresa, 
+     FechaNotaImpresa, 
+     Flag_EnVeraz, 
+     FechaEnVeraz, 
+     Flag_EnViaJudicial, 
+     FechaViaJudicial, 
+     Dpto_TipoSolicitud, 
+     ID_Afiliado
+FROM [$(vG.TransformPath)\STG_AFILIADOS_04_LLAMADAS_0810.qvd] (qvd);
+
+
+Left Join($(vL.QVD))
+LOAD
+	ID_Solicitud,
+	Retenido
+Resident $(vL.QVD)_TEMP;
+
+DROP Table $(vL.QVD)_TEMP;
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+
+DROP Table TIEMPO_RECARGA;

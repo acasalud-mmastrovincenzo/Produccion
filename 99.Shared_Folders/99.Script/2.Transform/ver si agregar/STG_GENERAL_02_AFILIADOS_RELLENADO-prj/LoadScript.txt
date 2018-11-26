@@ -1,0 +1,355 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab Titulares
+// OBJETIVO: GENERAR UN UNICO QVD CON EMPRESAS.
+
+
+LET vL.QVD = 'STG_GENERAL_02_AFILIADOS_RELLENADO';
+
+
+// Levanto los datos de TITULARES.
+$(vL.QVD):  
+LOAD
+	 GruponNro, 
+     AfiliadoNro, 
+     Apellido, 
+     Nombre, 
+     AfiliadoNombre, 
+     FechaNacimiento, 
+     Edad, 
+     GrupoEdad, 
+     Sexo, 
+     AgenciaID, 
+     EstadoCivil, 
+     FechaAlta, 
+     FechaAltaAdmin, 
+     AntigAños, 
+     MotivoBaja, 
+     Discapacitado, 
+     Estado, 
+     Cuit, 
+     AntiguedadReconocida, 
+     Observaciones, 
+     FechaVigencia, 
+     ParentescoID, 
+     Aporta, 
+     Adherente, 
+     ActividadID, 
+     Segmento, 
+     EmpresaID, 
+     ObraSocialID, 
+     PlanID, 
+     AfiliadoID, 
+     Flag_Titular, 
+     SegmentoTipo, 
+     Mail1, 
+     Contador,
+     If(AfiliadoNro='78550/00',0,1)			AS Titulares
+FROM [$(vG.TransformPath)\STG_GENERAL_01_SA_AFILIADOS.qvd] (qvd)
+Where ParentescoID = 'TIT';
+
+
+Left Join ($(vL.QVD))
+LOAD
+	 AfiliadoID, 
+     Mail2
+FROM [$(vG.TransformPath)\STG_GENERAL_01_MAIL_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 AfiliadoDomicilioID, 
+//     AfiliadoLocalidadID, 
+     AfiliadoID//, 
+//     AfiliadoCalle, 
+//     AfiliadoNro, 
+//     AfiliadoPiso, 
+//     AfiliadoDepartamento, 
+//     AfiliadoDomicilioObs, 
+//     AfiliadoDomicilioTipo
+FROM [$(vG.TransformPath)\STG_GENERAL_01_DOMICILIOS_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 AfiliadoTelefonoID, 
+//     AfiliadoTelefonoTipo, 
+//     AfiliadoTelefono, 
+     AfiliadoDomicilioID
+FROM [$(vG.TransformPath)\STG_GENERAL_01_TELEFONOS_AFILIADOS.qvd] (qvd);
+///$tab Familiares
+// Levanto los datos de FAMILIARES.
+$(vL.QVD)_Familiares_tmp:  
+NoConcatenate
+LOAD
+	 GruponNro, 
+     AfiliadoNro, 
+     Apellido, 
+     Nombre, 
+     AfiliadoNombre, 
+     FechaNacimiento, 
+     Edad, 
+     GrupoEdad, 
+     Sexo, 
+     AgenciaID							AS AgenciaID_Familiar, 
+     EstadoCivil, 
+     FechaAlta, 
+     FechaAltaAdmin, 
+     AntigAños, 
+     MotivoBaja, 
+     Discapacitado, 
+     Estado, 
+     Cuit, 
+     AntiguedadReconocida, 
+     Observaciones, 
+     FechaVigencia, 
+     ParentescoID, 
+     Aporta, 
+     Adherente, 
+     ActividadID, 
+     Segmento							AS Segmento_Familiar, 
+     EmpresaID							AS EmpresaID_Familiar, 
+     ObraSocialID						AS ObraSocialID_Familiar, 
+     PlanID								AS PlanID_Familiar, 
+     AfiliadoID, 
+     Flag_Titular, 
+     SegmentoTipo						AS SegmentoTipo_Familiar, 
+     Mail1								AS Mail1_Familiar, 
+     Contador
+FROM [$(vG.TransformPath)\STG_GENERAL_01_SA_AFILIADOS.qvd] (qvd)
+Where ParentescoID <> 'TIT';
+
+
+Left Join ($(vL.QVD)_Familiares_tmp)
+LOAD
+	 AfiliadoID, 
+     Mail2								AS Mail2_Familiar
+FROM [$(vG.TransformPath)\STG_GENERAL_01_MAIL_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD)_Familiares_tmp)
+LOAD 
+	 AfiliadoDomicilioID				AS AfiliadoDomicilioID_Familiar, 
+//     AfiliadoLocalidadID, 
+     AfiliadoID//, 
+//     AfiliadoCalle, 
+//     AfiliadoNro, 
+//     AfiliadoPiso, 
+//     AfiliadoDepartamento, 
+//     AfiliadoDomicilioObs, 
+//     AfiliadoDomicilioTipo
+FROM [$(vG.TransformPath)\STG_GENERAL_01_DOMICILIOS_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD)_Familiares_tmp)
+LOAD 
+	 AfiliadoTelefonoID					AS AfiliadoTelefonoID_Familiar, 
+//     AfiliadoTelefonoTipo, 
+//     AfiliadoTelefono, 
+     AfiliadoDomicilioID				AS AfiliadoDomicilioID_Familiar
+FROM [$(vG.TransformPath)\STG_GENERAL_01_TELEFONOS_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD)_Familiares_tmp)
+LOAD
+	 GruponNro,
+	 AgenciaID							AS AgenciaID_Titular, 
+     Segmento							AS Segmento_Titular, 
+     EmpresaID							AS EmpresaID_Titular, 
+     ObraSocialID						AS ObraSocialID_Titular, 
+     PlanID								AS PlanID_Titular, 
+     SegmentoTipo						AS SegmentoTipo_Titular, 
+     Mail1								AS Mail1_Titular,
+     Mail2								AS Mail2_Titular,
+     AfiliadoDomicilioID				AS AfiliadoDomicilioID_Titular, 
+     AfiliadoTelefonoID					AS AfiliadoTelefonoID_Titular
+Resident $(vL.QVD)
+Where Titulares = 1;
+
+
+DROP Field Titulares From $(vL.QVD);
+
+
+$(vL.QVD)_Familiares:
+NoConcatenate
+LOAD
+	 GruponNro, 
+     AfiliadoNro, 
+     Apellido, 
+     Nombre, 
+     AfiliadoNombre, 
+     FechaNacimiento, 
+     Edad, 
+     GrupoEdad, 
+     Sexo, 
+     AfiliadoID, 
+     Flag_Titular,
+     EstadoCivil, 
+     FechaAlta, 
+     FechaAltaAdmin, 
+     AntigAños, 
+     MotivoBaja, 
+     Discapacitado, 
+     Estado, 
+     Cuit, 
+     AntiguedadReconocida, 
+     Observaciones, 
+     FechaVigencia, 
+     ParentescoID, 
+     Aporta, 
+     Adherente, 
+     ActividadID, 
+     if(isnull(Segmento_Familiar),Segmento_Titular,Segmento_Familiar)										AS Segmento, 
+     if(isnull(EmpresaID_Familiar),EmpresaID_Titular,EmpresaID_Familiar)									AS EmpresaID, 
+     if(isnull(ObraSocialID_Familiar),ObraSocialID_Titular,ObraSocialID_Familiar)							AS ObraSocialID, 
+     if(isnull(PlanID_Familiar),PlanID_Titular,PlanID_Familiar)												AS PlanID, 
+     if(isnull(AgenciaID_Familiar),AgenciaID_Titular,AgenciaID_Familiar)									AS AgenciaID,  
+     if(isnull(SegmentoTipo_Familiar),SegmentoTipo_Titular,SegmentoTipo_Familiar)							AS SegmentoTipo, 
+     if(isnull(Mail1_Familiar),Mail1_Titular,Mail1_Familiar)												AS Mail1,
+     if(isnull(Mail2_Familiar),Mail2_Titular,Mail2_Familiar)												AS Mail2,
+     if(isnull(AfiliadoDomicilioID_Familiar),AfiliadoDomicilioID_Titular,AfiliadoDomicilioID_Familiar)		AS AfiliadoDomicilioID,
+     if(isnull(AfiliadoTelefonoID_Familiar),AfiliadoTelefonoID_Titular,AfiliadoTelefonoID_Familiar)			AS AfiliadoTelefonoID,
+     Contador
+Resident $(vL.QVD)_Familiares_tmp;
+
+
+DROP Table $(vL.QVD)_Familiares_tmp;
+///$tab STG_GENERAL_02_AFILIADOS_RELLENADO
+// Concateno a los Titulares los datos de los Familiares.
+Concatenate($(vL.QVD))
+LOAD Distinct
+	*
+RESIDENT $(vL.QVD)_Familiares;
+	
+	
+DROP TABLE $(vL.QVD)_Familiares;
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 DocumentoTipo, 
+     DocumentoNro, 
+     AfiliadoID
+FROM [$(vG.TransformPath)\STG_GENERAL_01_DOCUMENTOS_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 AfiliadoDomicilioID, 
+     AfiliadoLocalidadID, 
+//     AfiliadoID//, 
+     upper(AfiliadoCalle)											AS AfiliadoCalle, 
+     IF(AfiliadoNro='0',NULL(),AfiliadoNro)							AS AfiliadoDomicilioNro, 
+     if(AfiliadoPiso='0',
+     	if(AfiliadoDepartamento='0',null(),'PB'),AfiliadoPiso)		AS AfiliadoPiso, 
+     if(AfiliadoDepartamento='0',null(),AfiliadoDepartamento)		AS AfiliadoDepartamento, 
+     AfiliadoDomicilioObs, 
+     AfiliadoDomicilioTipo
+FROM [$(vG.TransformPath)\STG_GENERAL_01_DOMICILIOS_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 AfiliadoTelefonoID, 
+     AfiliadoTelefonoTipo, 
+     AfiliadoTelefono//, 
+//     AfiliadoDomicilioID
+FROM [$(vG.TransformPath)\STG_GENERAL_01_TELEFONOS_AFILIADOS.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD
+	 ParentescoID, 
+     Parentesco
+FROM [$(vG.TransformPath)\STG_GENERAL_01_PARENTESCO.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD
+//	 ObraSocialClaseID, 
+//     ObraSocialAgrupacionID, 
+     ObraSocialID, 
+     ObraSocial, 
+     ObraSocialDsc, 
+//     Estado, 
+//     FechaActivacion, 
+//     RNOS_ID, 
+//     Cuit, 
+//     Observaciones, 
+//     ObraSocialTipoID, 
+     ObraSocialTipo, 
+//     AgenciaID, 
+//     Email, 
+     ObraSocialAgrupacion, 
+//     ObraSocialAgrupacionDsc, 
+     ObraSocialClase//, 
+//     ObraSocialClaseDsc
+FROM [$(vG.TransformPath)\STG_GENERAL_01_OBRA_SOCIAL.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD
+	 PlanID, 
+//     PlanModeloID, 
+//     PlanAgrupacionID, 
+     Plan, 
+     PlanDsc, 
+//     PlanFechaAlta, 
+//     PlanFechaBaja, 
+//     PlanEstado, 
+//     PlanObs, 
+     PlanAgrupacion, 
+     PlanModelo, 
+//     PlanModeloEstado, 
+     PlanCredencial, 
+     PlanCoberturaMedicamento, 
+     PlanCoberturaOdontologia
+FROM [$(vG.TransformPath)\STG_GENERAL_01_PLANES.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);   
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

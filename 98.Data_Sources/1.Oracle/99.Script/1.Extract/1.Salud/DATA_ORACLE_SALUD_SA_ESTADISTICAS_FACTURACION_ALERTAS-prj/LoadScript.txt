@@ -1,0 +1,111 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'SA_ESTADISTICAS_FACTURACION_ALERTAS';
+LET vL.Base = 'SALUD';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+
+LET vL.FechaDesde = Date(MonthStart(Today()));
+LET vL.FechaHasta = Date(Today());
+
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Incremental';
+
+
+// Levanto los datos.
+$(vL.QVD):
+SQL 
+select pres.pp_id,pres.pres_efe_codigo,efe.nombre,cab.cabcp_id,fac.presfa_id,
+       nvl(fac.bruto_total,fac.gastos * fac.cantidad) imp_fac,
+       afi.codigo,afi.apellidos||' '||afi.nombres afi_nom,
+       ca.nom_prestacion_pdh prestacion,ca.descripcion,
+       c_calcula_total_pca_fac(ca.pca_id,fac.presfa_id) total_pagado,
+       to_char(ca.fecha_realizacion,'dd/mm/yyyy') fecha_realizacion,ca.cantidad,ca.contexto,
+       ca.atributo_8,ca.plan_codigo,ca.atributo_10,
+       (decode(ca.ATRIBUTO_11,'V','O','')||decode(ca.ATRIBUTO_12,'V','M','')||decode(ca.ATRIBUTO_13,'V','D','')||decode(ca.ATRIBUTO_14,'V','P',
+            '')||decode(ca.ATRIBUTO_15,'V','V','')) caras,
+       aler.caud_codigo alerta,
+       Trim(replace(replace(translate(to_char(aler.texto), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU'),chr(10),' '),';',',')) desc_alerta,
+       aler.usr_username_auditor_resuelve auditor,
+       to_char(aler.fecha_lectura,'dd/mm/yyyy') fecha_lectura,
+       aler.vda_drv_estado_auditoria estado_auditoria,
+       lib.nombre desc_estado,
+       Trim(replace(replace(translate(to_char(fac.observaciones), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU'),chr(10),' '),';',',')) observ
+from sa_alertas_ca aler,
+     sa_prestaciones_ca ca,
+     sa_prestaciones_facturadas fac,
+     sa_cabeceras_comprobantes_pres cab,
+     sa_presentaciones_prestadores pres,
+     sa_efectores efe,
+     sa_afiliados afi,
+     lib_valores_dominio_app lib
+where trunc(aler.fecha_lectura) between TO_DATE('$(vL.FechaDesde)','DD/MM/YYYY') and TO_DATE('$(vL.FechaHasta)','DD/MM/YYYY')
+and aler.pca_pca_id = ca.pca_id
+and ca.pca_id = fac.pca_pca_id
+and fac.cabcp_cabcp_id = cab.cabcp_id
+and cab.pp_pp_id = pres.pp_id
+and pres.pres_efe_codigo = efe.codigo
+and aler.vda_drv_estado_auditoria = lib.drv
+and ca.afi_afi_id = afi.afi_id
+order by pres.pp_id,ca.pca_id;
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Concateno lo guardado.
+Concatenate($(vL.QVD))
+LOAD *
+FROM $(vG.ExtractPath)\$(vL.QVD).qvd (qvd)
+Where FECHA_LECTURA < '$(vL.FechaDesde)';
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

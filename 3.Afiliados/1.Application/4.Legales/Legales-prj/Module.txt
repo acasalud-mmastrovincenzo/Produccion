@@ -1,0 +1,36 @@
+﻿Sub SetGrupo1 
+   set mySelections = ActiveDocument.fields("Periodo").GetSelectedValues
+   dim SelectedItems
+   if mySelections.Count <> 0 then
+   for i = 0 to mySelections.Count - 1
+   		SelectedItems = SelectedItems + """" + mySelections.Item(i).text + """" + ","
+   next
+	SelectedItems = left(SelectedItems, len(SelectedItems) - 1)
+	set v = ActiveDocument.GetVariable("VGrupoMes1")
+	v.SetContent SelectedItems,true
+	Else 
+	set v = ActiveDocument.GetVariable("VGrupoMes1")
+	v.SetContent "",true
+	End if
+	ActiveDocument.fields("Periodo").Clear
+End Sub
+
+
+Sub SetGrupo2
+   set mySelections = ActiveDocument.fields("Periodo").GetSelectedValues 
+
+   dim SelectedItems
+   if mySelections.Count <> 0 then
+   for i = 0 to mySelections.Count - 1
+   		SelectedItems = SelectedItems + """" + mySelections.Item(i).text + """" + ","
+   next
+	SelectedItems = left(SelectedItems, len(SelectedItems) - 1)
+	set v = ActiveDocument.GetVariable("VGrupoMes2")
+	v.SetContent SelectedItems,true
+	Else 
+	set v = ActiveDocument.GetVariable("VGrupoMes2")
+	v.SetContent "",true
+	End if
+	ActiveDocument.fields("Periodo").Clear 
+End Sub	
+	

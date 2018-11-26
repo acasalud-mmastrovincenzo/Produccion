@@ -1,0 +1,93 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'C_ESTADO_AP';
+LET vL.Base = 'SALUD';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Incremental';
+
+ 
+// Levanto el Máximo APR_ID de la última lectura.
+Max_APR_ID:
+LOAD 
+	Max(APR_ID) AS Max_APR_ID
+FROM $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+
+
+// Seteo el APR_ID_Desde a leer en el incremental.
+LET vL.APR_ID_Desde = Peek( 'Max_APR_ID', 0, 'Max_APR_ID') - 1000000; 
+
+
+// Levanto APR_ID mayores a vL.APR_ID_Desde.
+$(vL.QVD):
+NoConcatenate
+SQL 
+select 
+	apr_id,
+	c_estado_ap(apr_id)
+from sa_autorizaciones_previas
+WHERE apr_id >= $(vL.APR_ID_Desde); 
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Concateno lo guardado.
+Concatenate($(vL.QVD))
+LOAD *
+FROM $(vG.ExtractPath)\$(vL.QVD).qvd (qvd)
+WHERE Not Exists (apr_id, APR_ID);
+
+
+// Guardo la resultante.
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd); 
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+
+DROP Table $(vL.QVD);
+
+DROP Table Max_APR_ID;
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

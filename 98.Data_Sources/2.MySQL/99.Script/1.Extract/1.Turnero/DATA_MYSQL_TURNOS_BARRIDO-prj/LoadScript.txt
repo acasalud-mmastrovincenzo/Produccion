@@ -1,0 +1,97 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\ConnString_TURNERO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+// Tomamos las dimensiones a leer en este script.
+Tablas:
+NoConcatenate
+LOAD 
+	 //Upper(Tablas)			AS Tablas, 
+	 Tablas,
+     Base, 
+     Etiqueta
+FROM $(vG.CustomPath)\Dimensiones_TURNERO.xlsx
+(ooxml, embedded labels, table is Hoja1)
+Where Not IsNull(Tablas);
+
+
+// Levanto las dimensiones cargadas anteriormente.
+FOR i = 0 to NoOfRows('Tablas') -1 ;
+	
+	LET vL.HoraDesde = now();
+	LET vL.Tabla = Peek('Tablas', $(i), 'Tablas');
+	LET vL.Base = Peek('Base', $(i), 'Tablas');
+	LET vL.QVD = 'DATA_MYSQL_$(vL.Base)_$(vL.Tabla)';
+		
+	$(vL.QVD):
+	NoConcatenate
+	SQL SELECT *
+	FROM $(vL.Base).$(vL.Tabla);
+	
+	LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+	LET vL.QCampos = NoOfFields('$(vL.QVD)');
+		
+	STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+	
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\MYSQL\QVD\$(vL.QVD).qvd (qvd);
+
+	DROP Table $(vL.QVD);
+	
+	DetalleTablas:
+	LOAD
+		'$(vL.QRegistros)'									AS QRegistros,
+		'$(vL.QCampos)'										AS QCampos,
+		'$(vL.Tabla)'										AS Tablas,
+		'$(vL.QVD)'											AS QVD,
+		'$(vL.HoraDesde)'									AS FechaHoraDesdeTabla,
+		Now()												AS FechaHoraHastaTabla,
+		time(now()-'$(vL.HoraDesde)','hh:mm:ss') 			AS DuracionTabla
+	AUTOGENERATE 1;
+	
+NEXT i 
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+Left Join(Tablas)
+
+LOAD *
+Resident DetalleTablas;
+
+DROP Table DetalleTablas;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+//	'$(vL.QRegistros)'									AS QRegistros,
+//	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+//	'$(vL.QVD)'											AS QVD
+	'DATA_MYSQL_DIMENSIONES_TURNERO'					AS Proceso,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

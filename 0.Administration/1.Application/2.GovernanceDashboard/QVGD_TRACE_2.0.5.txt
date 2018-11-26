@@ -1,0 +1,11 @@
+﻿traceEntry	traceTimestamp	traceMessage
+1	20/11/2018 15:33:06	File path 0 set to D:\Qlik\4.Producción
+2	20/11/2018 15:33:06	Server path 0 set to C:\ProgramData\QlikTech\QlikViewServer
+3	20/11/2018 15:33:06	Publisher path 0 set to C:\ProgramData\QlikTech\DistributionService
+4	20/11/2018 15:33:06	Default Timestamp which will be used is: YYYY-MM-DD hh:mm:ss.
+5	20/11/2018 15:33:06	QVPR path 0 set to C:\ProgramData\QlikTech\ManagementService\QVPR
+6	20/11/2018 15:33:56	No incremental Events records found so no incremental update necessary.
+7	20/11/2018 15:34:07	No incremental Audit records found so no incremental update necessary.
+8	20/11/2018 15:34:07	No incremental Sessions records found so no incremental update necessary.
+9	20/11/2018 15:35:13	It appears that the Publisher timestamp format chosen in the Configuration page does not match the actual Publisher (QDS) timestamp format. Please verify that the Publisher Timestamp Format setting on the Configuration page matches the timestamp format of the StartTimeStamp entry in the TaskExecutionHistory xml logs.
+10	20/11/2018 15:35:19	On this fine day 20 of Nov 2018, after 00:02:14 the original Qlik-supported load script has been reloaded. Enjoy the Governance Dashboard 2.0.5!

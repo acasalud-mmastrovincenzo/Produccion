@@ -1,0 +1,114 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPO RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'DATA_ORACLE_SALUD_EVENTO_MEDICO_DISCAPACIDAD';
+
+$(vL.QVD):
+SQL
+Select 
+	decode( em.vda_drv, 'EM-----A', 'AUT',
+	                    'EM-----G', 'PEN',
+	                    'EM-----N', 'ANU',
+	                    'EM-----R', 'RCH', 'DES' ) estado, 
+	em.fecha_emision, 
+	EM.TEM_CODIGO,
+	tp.de_seguimiento EMS,
+	em.em_id evento,
+	em.diag_codigo, 
+	dg.nombre diagnostico, 
+	em.nom_prestacion, 
+	afi.codigo cod_afiliado, 
+	rpad(ltrim(afi.apellidos)||' '||DECODE(afi.nombres,'.',' ',afi.nombres),40,' ') Afiliado, 
+	afi.sexo,
+	afi.plan_codigo plan,
+	c_dom_afiliado( nvl( afi.afi_afi_id, afi.afi_id ), 'LOC' )     loc,
+	c_dom_afiliado( nvl( afi.afi_afi_id, afi.afi_id ), 'PROV' )    prv,
+	em.efe_codigo_lugar cod_efe, 
+	efe.nombre prestador, 
+	loc.localidad localidad,
+	prv.nombre provincia, 
+	em.feem_codigo m_egreso,
+	decode( em.tipo_fecha_fin, 'R', round(em.fecha_fin - em.fecha_inicio,2), '' ) Dias_Reales, 
+	decode( em.tipo_fecha_fin, 'T', round(em.fecha_fin - em.fecha_inicio,2), '' ) Dias_Provisorios,
+	em.fecha_inicio Fec_Desde, 
+	em.tipo_fecha_inicio tfi, 
+	em.fecha_fin Fec_Hasta,
+	em.tipo_fecha_fin tff, 
+	em.observaciones,
+	C_DATO_ADIC_NAUD( em.em_id, 'TIPO_DISCA'   ) DA_Tipo_DISC,
+	C_DATO_ADIC_NAUD( em.em_id, 'FECHA_EMI'    ) DA_Fec_Emi,
+	C_DATO_ADIC_NAUD( em.em_id, 'FECHA_RENO'   ) DA_Fec_Renov,
+	C_DATO_ADIC_NAUD( em.em_id, 'FECHA_VTO'    ) DA_Fec_Vto,
+	C_DATO_ADIC_NAUD( em.em_id, 'ORIGEN_CUD'   ) DA_Org_CUD,  
+	C_DATO_ADIC_NAUD( em.em_id, 'CLASE_CUD'    ) DA_Cla_CUD,
+	C_DATO_ADIC_NAUD( em.em_id, 'AM_PROYECTO'  ) AM_PROYECTO,
+	C_DATO_ADIC_NAUD( em.em_id, 'CAT_PROYECTO' ) CAT_PROYECTO,
+	C_DATO_ADIC_NAUD( em.em_id, 'RTDO_PROYECTO') RTDO_PROYECTO       
+from 
+	sa_eventos_medicos em, 
+	sa_afiliados afi, 
+	sa_efectores efe, 
+	sa_domicilios_efector dom, 
+	sa_domiefe_td td, 
+	sa_localidades loc,
+	sa_provincias prv, 
+	sa_diagnosticos dg,
+	sa_tipos_em tp
+where 
+		em.efe_codigo_lugar = efe.codigo (+)
+	and em.afi_afi_id = afi.afi_id 
+	and em.diag_codigo = dg.codigo (+)
+	and efe.codigo = dom.efe_codigo (+) 
+	and dom.domiefe_id = td.DOMIefe_DOMIefe_ID (+) 
+	and td.td_codigo (+) = 'COM' 
+	and dom.loc_loc_id = loc.loc_id (+) 
+	and loc.pcia_codigo = PRV.codigo (+) 
+	and em.tem_codigo = tp.codigo (+)
+	and tp.de_seguimiento = 'V'
+	and EM.TEM_CODIGO = 'DISC' ;
+
+
+                                         
+STORE * from $(vL.QVD) INTO $(vG.ExtractPath)\$(vL.QVD).qvd;
+
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

@@ -1,0 +1,121 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_02_AFILIADOSTITULARES';
+
+$(vL.QVD):
+NoConcatenate
+LOAD 
+	 ID_Afiliado, 
+     ID_ObraSocial, 
+     ID_Parentesco, 
+     ID_Provincia, 
+     ID_Localidad, 
+     ID_Plan, 
+     ID_Domicilio, 
+     %ID_Afiliado, 
+     Nro_Grupo, 
+     Nro_Afiliado, 
+     Apellido, 
+     Nombre, 
+     Nom_AfiliadoCompleto, 
+     FechaNacimiento, 
+     Edad, 
+     GrupoEdad, 
+     Sexo, 
+     ID_Agencia, 
+     EstadoCivil, 
+     FechaAlta, 
+     FechaAltaAdmin, 
+     AntigAños, 
+     MotivoBaja, 
+     Discapacitado, 
+     Estado, 
+     Cuit, 
+     AntiguedadReconocida, 
+     Observaciones, 
+     FechaVigencia, 
+     ID_AfiAfi, 
+     Aporta, 
+     Adherente, 
+     ID_Acti, 
+     ID_Segmento, 
+     TitularSiNo, 
+     TipoAfiliacion, 
+     Origen, 
+     Contador, 
+     Nom_Calle, 
+     Nro_Calle, 
+     Nro_Piso, 
+     Nro_Depto, 
+     ObservacionesDomicilio, 
+     ReferenciaExterna, 
+     ID_Telefono, 
+     TipoTelefono, 
+     Nro_Telefono, 
+     PlanCopago, 
+     PlanCredencial, 
+     PlanReintegro, 
+     PlanModelo, 
+     CredencialEquivalente, 
+     CodigoPostal, 
+     Nom_Localidad, 
+     PrefijoDDN, 
+     Nom_Provincia, 
+     Dsc_Provincia, 
+     ID_Pais, 
+     Nom_Parentesco, 
+     Nom_ObraSocial, 
+     TipoObraSocial, 
+     TipoDocumento, 
+     Nro_Documento, 
+     Email
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_AFILIADOS.qvd]
+(qvd)
+WHERE (TitularSiNo='TIT');
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

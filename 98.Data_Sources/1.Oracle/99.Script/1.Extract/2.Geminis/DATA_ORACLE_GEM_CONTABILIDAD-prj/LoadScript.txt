@@ -1,0 +1,171 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'CONTABILIDAD';
+LET vL.Base = 'GEMINIS';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Barrido';
+
+// Levanto los datos.
+$(vL.QVD):
+SELECT  /*+ RULE */
+       DISTINCT
+       ASI.ASI_FECHA                                ASI_FECHA,
+       ASI.ASI_NUMERO                                ASI_NUMERO,
+       ASI.ASI_SECUENCIA                            ASI_SECUENCIA,
+       IPT.ASI_CODIGO                                ASI_CODIGO,
+       CPR.CPR_CODIGO                                CPR_CODIGO,
+       CPR.CPR_MCA_CIERRE                            CPR_MCA_CIERRE, 
+       ASI.ASI_NUMERO_COMP                            ASI_NUMERO_COMP,
+       IPT.IPT_ITEM                                      IPT_ITEM,
+       VW_CTA.CTA_CODIGO                            CTA_CODIGO,
+       VW_CTA.CTA_DESCRIPCION                        CTA_DESCRIPCION,
+      ASI.ASI_LEYENDA||'  '||IPT.IPT_LEYENDA                    LEYENDA,
+       ASI.ASI_LEYENDA                                LEYENDA_1,
+       IPT.IPT_LEYENDA                                LEYENDA_2,       
+      IPT.IPT_NUMERO_CHEQUE                        NRO_CHEQ,
+       to_number(decode(IPT.IPT_IMP_DEBE , 0, null, IPT.IPT_IMP_DEBE))        DEBE,
+       to_number(decode(IPT.IPT_IMP_HABER , 0, null, IPT.IPT_IMP_HABER))    HABER,
+       nvl((decode(IPT.IPT_IMP_DEBE , 0, 0, IPT.IPT_IMP_DEBE)- decode(IPT.IPT_IMP_HABER , 0, 0, IPT.IPT_IMP_HABER)),0)  SALDO,
+       ASI.EMP_CODIGO                                EMP_CODIGO,
+      '1'                                            COL_CODIGO,
+       VW_CTA.CL1_CODIGO                            CL1_CODIGO,
+       CL1.CL1_NOMBRE                               CL1_NOMBRE,
+       VW_CTA.CL2_CODIGO                            CL2_CODIGO,
+       CL2.CL2_NOMBRE                               CL2_NOMBRE,
+       VW_CTA.ANA_CODIGO                            ANA_CODIGO,
+       VW_CTA.CTA_ALIAS                                CTA_ALIAS,
+       VW_CTA.CTA_TIPO_CTA                            CTA_TIPO_CTA,
+       VW_CTA.CTA_MCA_IMPUTABLE                        CTA_MCA_IMPUTABLE,
+       DECODE(ASI.ASI_ORIGEN,NULL,DECODE(ASISUB.ASI_CODIGO,NULL,'N','S'),'S')        MCA_DETALLE
+FROM   
+	CCP_ASIENTOS            ASI,
+	CCP_IMPUTACIONES        IPT,
+	CCP_CUENTAS             VW_CTA,
+	CCP_ASI_SUBMODULOS 		ASISUB,
+	CCP_COMPROBANTES        CPR,
+	CCP_CLASIFICACIONES1 	CL1,
+	CCP_CLASIFICACIONES2 	CL2,
+	CCP_CPR_COLUMNA_SALDOS  SAL
+WHERE 	ASI.EMP_CODIGO+0 		= 1
+	AND IPT.EMP_CODIGO+0 		= VW_CTA.EMP_CODIGO
+	AND IPT.CTA_CODIGO||'' 		= VW_CTA.CTA_CODIGO
+	AND VW_CTA.CL1_CODIGO||'' 	= CL1.CL1_CODIGO (+)
+	AND VW_CTA.EMP_CODIGO+0 	= CL1.EMP_CODIGO (+)
+	AND VW_CTA.CL2_CODIGO||'' 	= CL2.CL2_CODIGO (+)
+	AND VW_CTA.EMP_CODIGO+0 	= CL2.EMP_CODIGO (+)
+	AND IPT.IPT_ESTADO   		= 0
+	AND ASI.EMP_CODIGO+0 		= IPT.EMP_CODIGO
+	AND ASI.ASI_CODIGO+0 		= IPT.ASI_CODIGO
+	AND ASI.ASI_ESTADO 			= 0
+	AND CPR.EMP_CODIGO 			= ASI.EMP_CODIGO+0
+	AND CPR.CPR_CODIGO 			= ASI.CPR_CODIGO||''
+	//AND   ASI.ASI_FECHA 		>= '01-JUL-2014'
+	AND ASI.ASI_CODIGO+0 		= ASISUB.ASI_CODIGO(+)
+	AND ASI.EMP_CODIGO+0 		= ASISUB.EMP_CODIGO(+)
+	AND SAL.EMP_CODIGO 			= ASI.EMP_CODIGO+0
+	AND SAL.COL_CODIGO||'' 		= '1'
+	AND SAL.CPR_CODIGO 			= ASI.CPR_CODIGO||'';
+
+RENAME Table $(vL.QVD) to $(vL.QVD)_TEMP;
+
+NoConcatenate
+$(vL.QVD):
+LOAD
+	Year(ASI_FECHA) as AÑO,
+	Month(ASI_FECHA) as MES,
+	'Q' & Ceil(Month(ASI_FECHA)/3) as TRIMESTRE,
+	Year(ASI_FECHA) & '-Q' & Ceil(Month(ASI_FECHA)/3) as AÑO_TRIMESTRES,
+	date(MonthStart(ASI_FECHA),'MM/YYYY') as AÑO_MES,
+	//MonthStart(ASI_FECHA) as AÑO_MES,
+	Day(ASI_FECHA) as DIA,
+	Date(ASI_FECHA,'DD/MM/YYYY') as ASI_FECHA,
+	ASI_NUMERO,
+ 	ASI_SECUENCIA,
+  	ASI_CODIGO,
+    CPR_CODIGO,
+    CPR_MCA_CIERRE,
+    ASI_NUMERO_COMP,
+    IPT_ITEM,
+    CTA_CODIGO,
+    CTA_CODIGO AS CTA_CODIGO_CTE,
+    CTA_DESCRIPCION,
+    LEYENDA,
+    LEYENDA_1,
+    LEYENDA_2,
+    NRO_CHEQ,
+    DEBE,
+    HABER,
+    SALDO,
+    EMP_CODIGO,
+    COL_CODIGO,
+    CL1_CODIGO,
+    CL1_NOMBRE,
+    CL2_CODIGO,
+    left(CL2_CODIGO,3) as CL2_N1,
+    IF	(left(CL2_CODIGO,3)= '570' , '999',IF (left(CL2_CODIGO,3) = '520' OR left(CL2_CODIGO,3) = '530' OR left(CL2_CODIGO,3) = '531' OR left(CL2_CODIGO,3) ='540' , right(CL2_CODIGO,3) , '' ))as CL2_GASTOSAGRUP_ID,
+    //  IF	(left(CL2_CODIGO,3) = '520' OR left(CL2_CODIGO,3) = '530' OR left(CL2_CODIGO,3) = '531' OR left(CL2_CODIGO,3) ='540', right(CL2_CODIGO,3) , '' )as CL2_GASTOSAGRUP_ID,
+    //right(CL2_CODIGO,3)as CL2_GASTOSAGRUP_ID,
+    CL2_NOMBRE,
+    ANA_CODIGO,
+    CTA_ALIAS,
+    CTA_TIPO_CTA,
+    IF	(CTA_TIPO_CTA = 'P' OR CTA_TIPO_CTA = 'E' ,  1 , 2) as Flag_TipoCta,
+    CTA_MCA_IMPUTABLE,
+    MCA_DETALLE
+Resident $(vL.QVD)_TEMP;
+
+DROP Table $(vL.QVD)_TEMP;
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

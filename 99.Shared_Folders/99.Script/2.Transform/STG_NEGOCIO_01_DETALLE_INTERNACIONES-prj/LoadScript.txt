@@ -1,0 +1,94 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab STG_NEGOCIO_01_DETALLE_INTERNACIONES
+// DESARROLLADO POR: LSEMINO - Fecha de Creación: 18/05/2016.
+// OBJETIVO: GENERAR UN UNICO QVD CON EL DETALLE DE INTERNACIONES.
+
+
+LET vL.QVD = 'STG_NEGOCIO_01_DETALLE_INTERNACIONES';
+
+
+// Levanto el Detalle de las Internaciones.
+$(vL.QVD):  
+LOAD 
+	 //AFI_ID & '|' & Date(PERIODO,'YYYYMM') & Date(PERIODO,'YYYYMM') 	AS %K_ID_Afiliado_Periodo_Periodo,
+	 AFI_ID & '|' & Year(Date(PERIODO, 'YYYYMM')) & Right('0' & Num(Month(Date(PERIODO, 'YYYYMM'))),2) 	AS %K_ID_Afiliado_Periodo, 
+	 TIPOEVENTO							AS TipoEvento, 
+     CASA								AS ID_Agencia, 
+     EVENTO								AS Evento, 
+     ESTADO								AS Estado, 
+     TIPO_EM							AS TipoEventoMedico, 
+     Date(FECHA_INICIO, 'DD/MM/YYYY')	AS FechaInicio, 
+     Date(FECHA_FIN, 'DD/MM/YYYY')		AS FechaFin, 
+     Date(FECHA_REGISTRACION, 'DD/MM/YYYY')	AS FechaRegistracion, 
+     DIAG_CODIGO						AS ID_Diagnostico, 
+     DIAGNOSTICO						AS Nom_Diagnostico, 
+     NOM_PRESTACION						AS Nom_Prestacion, 
+     COD_AFILIADO						AS Nro_Afiliado, 
+     AFI_ID								AS ID_Afiliado, 
+     APELLIDOS							AS Apellido, 
+     NOMBRES							AS Nombre, 
+     EFECTOR							AS ID_Efector, 
+     EFECTOR_NOMBRE						AS Nom_Efector, 
+     LOCALIDAD							AS Nom_Localidad, 
+     PROVINCIA							AS Nom_Provincia, 
+     PERIODO							AS Periodo, 
+//     Year(Date(PERIODO)) *100 + Month(Date(PERIODO))	AS Periodo2,
+     CANT_DIAS_TENT						AS CantidadDiasTentativos, 
+     CANT_DIAS_REAL						AS cantidadDiasReales, 
+     CANT_DIAS_EFECTIVOS				AS CantidadDiasEfectivos, 
+     OBSERVACIONES						AS Obs_Internacion,
+     FEEM_CODIGO						as FormaEgresoEventoMedico, 
+     TIPO_FECHA_FIN						as TipoFechaFin,
+     SUSPENDIDO							as Suspendido
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DETALLE_INTERNACIONES.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+//DROP Field FilePath;
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);   
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

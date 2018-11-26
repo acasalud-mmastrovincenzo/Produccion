@@ -1,0 +1,68 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_01_C_HIST_SCORE';
+
+
+$(vL.QVD):
+NoConcatenate
+LOAD
+	 CODIGO					AS Nro_Afiliado, 
+     AFI_ID					AS ID_Afiliado, 
+     APELLIDOS				AS Apellido, 
+     NOMBRES				AS Nombre, 
+     SCORE					AS Score, 
+     F_PROC					AS Fecha_Proceso, 
+     IXRENT					AS Rentabilidad, 
+     MXEDAD					AS EdadMaxima, 
+     EMEXCL					AS EventoMedicoExclusion,	 
+     AFI_ESTADO				AS AfiliadoEstado, 
+     USUARIO				AS Usuario,	 
+     FECHA					AS Fecha
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_HIST_SCORE.qvd] (qvd);
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

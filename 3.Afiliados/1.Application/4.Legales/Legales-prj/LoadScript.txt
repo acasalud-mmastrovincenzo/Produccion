@@ -1,0 +1,757 @@
+﻿///$tab Main
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\1.Application'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Shared', 'TransformPath;ColorSchemePath');
+
+
+// Levanto la Paleta de Colores de ACA Salud.
+$(Include=$(vG.SharedColorSchemePath)\colores_aca.txt);
+///$tab SA
+
+//Section Access;
+//LOAD * INLINE [
+//    ACCESS, USERID, PASSWORD
+//    ADMIN, admin, 2556
+//];
+//
+//Section Application;
+
+///$tab Versionado
+Versionado_tmp:
+NoConcatenate
+LOAD 
+  	 Fecha 				 AS FechaVersion, 
+     Desarrollador, 
+     Version, 
+     Modificaciones
+FROM
+[$(vG.CustomPath)\Historial de Versiones Legales.xlsx]
+(ooxml, embedded labels, table is Hoja1);
+
+
+Versionado:
+NoConcatenate
+LOAD * Resident Versionado_tmp Order by FechaVersion;
+
+LET vversion = Peek('Version');
+
+DROP Table Versionado_tmp;
+///$tab Dimensiones Calculadas
+DimensionesCalculadas:
+NoConcatenate
+LOAD 
+	 ID_Dimension,
+	 '.'&ID_Dimension&'.'			as ID_DimensionFiltro%, 
+     EtiquetaDimension, 
+     Dimension
+FROM
+[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+(ooxml, embedded labels, table is Dimensiones)
+Where Visualizar = 'SI';
+///$tab Metricas
+Metricas:
+NoConcatenate
+LOAD 
+	 ID_Expresion, 
+     EtiquetaSimpleExpresion, 
+     Expresion,
+     VisualizarReporte 			as VisualizarReporte%
+//   Comparativo, 
+//   Visualizar
+FROM
+[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+(ooxml, embedded labels, table is Expresiones)
+Where Visualizar = 'SI' and Comparativo = 'NO'
+;
+
+//MetricasVsPeriodoAnterior:
+//NoConcatenate
+//LOAD ID_Expresion					as ID_ExpresionVsPeriodoAnterior, 
+//     EtiquetaSimpleExpresion		as EtiquetaSimpleExpresionVsPeriodoAnterior 
+////   Expresion 
+////   Comparativo, 
+////   Visualizar
+//FROM
+//[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is Expresiones)
+//Where Visualizar = 'SI' and vsPeriodoAnterior = 'SI'
+//;
+//
+//MetricasComparativo:
+//NoConcatenate
+//LOAD ID_Expresion						as ID_ExpresionComparativo, 
+//     EtiquetaSimpleExpresion			as EtiquetaSimpleExpresionComparativo, 
+//     Expresion							as ExpresionComparativo
+////   Comparativo, 
+////   Visualizar
+//FROM
+//[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is Expresiones)
+//Where Comparativo = 'SI' and Visualizar = 'SI';
+//
+//MetricasEdad:
+//LOAD Distinct 
+//	Dimension						as MetricaEdad%
+//FROM
+//[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is ReporteDeDimensiones)
+//where VisualizarFiltroEdad = 'SI'
+//;
+//
+DimensionesDetalle:
+LOAD Distinct 
+	ID_Dimension					as ID_DimensionesDetalle,
+	'.'&ID_Dimension&'.'			as ID_DimensionesDetalleFiltro%,
+	Dimension						as DimensionesDetalle%
+FROM
+[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+(ooxml, embedded labels, table is ReporteDeDimensiones)
+where VisualizarReportesDinamico = 'SI';
+//
+//MetricasReportes:
+//LOAD Distinct 						
+//	ID_Expresion					as ID_ExpresionMetricaReporte, 
+//    EtiquetaSimpleExpresion			as EtiquetaSimpleExpresionMetricaReporte
+//FROM
+//[$(vG.CustomPath)\Dimensiones y Expresiones Parametrizadas Legales.xlsx]
+//(ooxml, embedded labels, table is Expresiones)
+//where Visualizar = 'SI' and VisualizarReporte = 'SI'
+//;
+///$tab Dimensiones y Expresiones - Detalle Dinámico
+//Dimensiones_Detalle:
+//LOAD * INLINE [
+//    _DimensionesDetalle, _OrdenDimDetalle
+//    Nro. Afiliado, 1
+//    Nombre Afiliado, 2
+//    Estado Afiliado, 3
+//    Nro. Documento Afiliado, 4
+//    Edad Afiliado, 5
+//    Grupo Etario Afiliado, 6
+//    Nro. Grupo Familiar, 7
+//    Segmento, 8
+//    Parentesco, 9
+//    Nombre Agencia / Filial, 10
+//    Provincia, 11
+//    Localidad, 12
+//    Tipo de Solicitud, 13
+//    ID Solicitud, 14
+//    Fecha Inicial Solicitud, 15
+//    Estado Solicitud, 16
+//    Empresa, 17
+//    Grupo Empresa, 18
+//    Tipo Evento Médico, 19
+//    ID Evento Médico, 21
+//    Periodo, 21
+//    Ejercicio, 22
+//    Región Comercial, 23
+//    Periodo (Gestión Deuda), 24
+//];
+//
+//Expresiones_Detalle:
+//LOAD * INLINE [
+//    _ExpresionesDetalle, _OrdenExpDetalle
+//    Cant. de Solicitudes, 1
+//    % Solicitudes, 2
+//    Cant. de Altas, 3
+//    Cant. de Bajas, 4
+//    Cant. Solicitudes (Gestión Deuda), 5
+//    Cant. Afiliados (Gestión Deuda), 6
+//    Deuda Total, 7
+//    Deuda Actual, 8
+//    Importe Recuperado, 9
+//    % de Recupero, 10
+//];
+///$tab Afiliados
+//Afiliados:
+//NoConcatenate
+//LOAD Distinct 
+//	 Nro_Afiliado,
+//	 %ID_Afiliado, 
+//     ID_ObraSocial, 
+//     ID_Parentesco, 
+//     ID_Provincia, 
+//     ID_Localidad, 
+//     ID_Plan, 
+//     ID_Domicilio, 
+//     ID_Afiliado, 
+//     Nro_Grupo,
+//     if(isnull(Nro_Afiliado),'999999',Nro_Grupo)							AS %ID_GrupoFamiliar,
+//     Apellido, 
+//     Nombre, 
+//     Nom_AfiliadoCompleto, 
+//     FechaNacimiento, 
+//     Edad, 
+//     GrupoEdad, 
+//     Sexo, 
+//     ID_Agencia																AS %ID_Agencia, 
+//     EstadoCivil, 
+//     FechaAlta, 
+//     FechaAltaAdmin, 
+//     AntigAños, 
+//     MotivoBaja, 
+//     Discapacitado, 
+//     Estado, 
+//     Cuit, 
+//     AntiguedadReconocida, 
+//     Observaciones, 
+//     FechaVigencia, 
+//     ID_AfiAfi, 
+//     Aporta, 
+//     Adherente, 
+//     ID_Acti, 
+//     ID_Segmento, 
+//     TitularSiNo, 
+//     TipoAfiliacion, 
+//     Origen, 
+//     Contador, 
+////     Nom_Calle, 
+////     Nro_Calle, 
+////     Nro_Piso, 
+////     Nro_Depto, 
+////     ObservacionesDomicilio, 
+//     ReferenciaExterna, 
+////     ID_Telefono, 
+////     TipoTelefono, 
+////     Nro_Telefono, 
+//     PlanCopago, 
+//     PlanCredencial, 
+//     PlanReintegro, 
+//     PlanModelo, 
+//     CredencialEquivalente, 
+//     CodigoPostal, 
+//     Nom_Localidad, 
+//     PrefijoDDN, 
+//     Nom_Provincia, 
+//     Dsc_Provincia, 
+//     ID_Pais, 
+//     Nom_Parentesco, 
+//     Nom_ObraSocial, 
+//     TipoObraSocial, 
+//     TipoDocumento, 
+//     Nro_Documento, 
+//     Email,
+//     %ID_Empresa
+//FROM
+//[$(vG.TransformPath)\STG_AFILIADOS_01_AFILIADOS.qvd]
+//(qvd);
+
+
+Afiliados:
+NoConcatenate
+LOAD Distinct
+	 %ID_Afiliado, 
+//     ID_Domicilio, 
+     Nro_Grupo, 
+     if(isnull(Nro_Afiliado),'999999',Nro_Grupo)							AS %ID_GrupoFamiliar,
+     Nro_Afiliado, 
+     Apellido, 
+     Nombre, 
+     Nom_AfiliadoCompleto, 
+     FechaNacimiento, 
+     Edad, 
+     GrupoEdad, 
+     Sexo, 
+     ID_Agencia																AS %ID_Agencia, 
+     EstadoCivil, 
+     FechaAlta, 
+     FechaAltaAdmin, 
+     AntigAños, 
+     MotivoBaja, 
+     Discapacitado, 
+     Estado, 
+     Cuit, 
+     AntiguedadReconocida, 
+     Observaciones, 
+     FechaVigencia, 
+     ID_AfiAfi, 
+     ID_Parentesco, 
+     Aporta, 
+     Adherente, 
+     ID_Acti, 
+     ID_Segmento, 
+     ID_Empresa, 
+     ID_ObraSocial, 
+     ID_Plan, 
+     ID_Afiliado, 
+     TitularSiNo, 
+     TipoAfiliacion, 
+     Origen, 
+     Contador, 
+     ID_Localidad, 
+//     Nom_Calle, 
+//     Nro_Calle, 
+//     Nro_Piso, 
+//     Nro_Depto, 
+//     ObservacionesDomicilio, 
+//     ReferenciaExterna, 
+//     ID_Telefono, 
+//     TipoTelefono, 
+//     Nro_Telefono, 
+//     Email, 
+//     ID_Domicilio_Familiar, 
+//     ID_Telefono_Familiar
+	 CodigoPostal, 
+     Nom_Localidad, 
+//     PrefijoDDN, 
+     Nom_Provincia, 
+     Dsc_Provincia, 
+     ID_Pais,
+     PlanCopago, 
+     PlanCredencial, 
+     PlanReintegro, 
+     PlanModelo, 
+     CredencialEquivalente, 
+     Nom_ObraSocial, 
+     TipoObraSocial, 
+     TipoDocumento, 
+     Nro_Documento
+FROM
+[$(vG.TransformPath)\STG_AFILIADOS_01_AFILIADOS_RELLENADO.qvd]
+(qvd);
+
+
+Left Join (Afiliados)
+LOAD  
+     Date(Max(Fecha),'DD/MM/YYYY')							AS FechaBaja, 
+     ID_Afiliado											AS %ID_Afiliado
+FROM
+[$(vG.TransformPath)\STG_AFILIADOS_01_MOVIMIENTOSALTABAJA.qvd]
+(qvd)
+Where ID_TipoMovimiento='B'
+Group by ID_Afiliado;
+///$tab Titulares
+//Titulares:
+//LOAD 
+//	 ID_Afiliado															AS ID_Afiliado_Titular,
+//	 ID_ObraSocial															AS ID_ObraSocial_Titular, 
+//     ID_Parentesco															AS ID_Partentesco_Titular, 
+//     ID_Provincia															AS ID_Provincia_Titular, 
+//     ID_Localidad															AS ID_Localidad_Titular, 
+//     ID_Plan																AS ID_Plan_Titular, 
+//     ID_Domicilio															AS ID_Domicilio_Titular, 
+//     %ID_Afiliado, 
+//     Nro_Grupo																AS Nro_Grupo_Titular, 
+//     Nro_Afiliado															AS Nro_Afiliado_Titular,
+//     if(isnull(Nro_Afiliado),'999999',Nro_Grupo)							AS %ID_Titular, 
+//     Apellido, 
+//     Nombre, 
+//     Nom_AfiliadoCompleto													AS Nom_AfiliadoCompleto_Titular, 
+//     FechaNacimiento, 
+//     Edad, 
+//     GrupoEdad, 
+//     Sexo, 
+//     ID_Agencia																AS %ID_Agencia, 
+//     EstadoCivil, 
+//     FechaAlta, 
+//     FechaAltaAdmin, 
+//     AntigAños, 
+//     MotivoBaja, 
+//     Discapacitado, 
+//     Estado, 
+//     Cuit, 
+//     AntiguedadReconocida, 
+//     Observaciones, 
+//     FechaVigencia, 
+//     ID_AfiAfi, 
+//     Aporta, 
+//     Adherente, 
+//     ID_Acti, 
+//     ID_Segmento, 
+//     TitularSiNo, 
+//     TipoAfiliacion, 
+//     Origen, 
+//     Contador, 
+//     Nom_Calle, 
+//     Nro_Calle, 
+//     Nro_Piso, 
+//     Nro_Depto, 
+//     ObservacionesDomicilio, 
+//     ReferenciaExterna, 
+//     ID_Telefono, 
+//     TipoTelefono, 
+//     Nro_Telefono, 
+//     PlanCopago, 
+//     PlanCredencial, 
+//     PlanReintegro, 
+//     PlanModelo, 
+//     CredencialEquivalente, 
+//     CodigoPostal, 
+//     Nom_Localidad, 
+//     PrefijoDDN, 
+//     Nom_Provincia, 
+//     Dsc_Provincia, 
+//     ID_Pais, 
+//     Nom_Parentesco, 
+//     Nom_ObraSocial, 
+//     TipoObraSocial, 
+//     TipoDocumento, 
+//     Nro_Documento, 
+//     Email
+//FROM
+//[$(vG.TransformPath)\STG_AFILIADOS_02_AFILIADOSTITULARES.qvd]
+//(qvd);
+///$tab Eventos Médicos
+Eventos_Medicos:
+NoConcatenate
+LOAD 
+	 ID_EventoMedico, 
+     ID_Mem, 
+     FechaInicio, 
+     FechaFin, 
+     TipoFechaInicio, 
+     TipoFechaFin, 
+     Dsc_EventoMedico, 
+     NivelComplicacionDiag, 
+     ID_Afiliado						AS %ID_Afiliado, 
+     ID_Diagnostico, 
+//     ID_Agencia, 
+     ID_EfectorResponsable, 
+     ID_EfectorLugar, 
+     SistemaDeterminado, 
+     ID_TipoEventoMedico				AS %ID_TipoEventoMedico, 
+     ID_Rem, 
+     ID_EfectorSolicitante, 
+     ID_EvMedDeSeguim, 
+     Vda_Drv, 
+     Nom_Prestacion, 
+     Obs_EventoMedico, 
+     Flag_Emitido, 
+     FechaEmision, 
+     ID_GrupoPrestacion, 
+     ID_AutorizacionPrevia, 
+     FEEM_CODIGO
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_EVENTOS_MEDICOS.qvd] (qvd);
+
+
+
+Tipos_Eventos_Medicos:
+NoConcatenate
+LOAD 
+	 ID_TipoEventoMedico				AS %ID_TipoEventoMedico, 
+     Nom_TipoEventoMedico, 
+     Dsc_TipoEventoMedico, 
+     Flag_EventoSeguimiento, 
+     Contexto_EventoMedico, 
+     Sistema_EventoMedico, 
+//     Texto, 
+//     Ctd_CopiasImpresion, 
+//     ArchivoImpresion, 
+//     Impresora, 
+//     Obs_TipoEventoMedico, 
+     Flag_Evento_Cronico
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_TIPOS_EVENTOS_MEDICOS.qvd] (qvd);
+///$tab Delegaciones
+Delegaciones:
+NoConcatenate
+LOAD 
+	 %ID_Agencia, 
+     ID_RegionComercial, 
+     ID_Agencia, 
+     %K_ID_Agencia_ObraSocial, 
+     Nom_Agencia, 
+     Agencia, 
+     EstadoAgencia, 
+     DireccionAgencia, 
+     ID_LocalidadAgencia, 
+     ID_TipoAgencia, 
+     ID_TipoAgenciaOriginal, 
+     TipoAgencia, 
+     AgenciaDependenciaFinal, 
+     ID_SubTipoAgencia, 
+     RegionAgencia, 
+     Dsc_RegionComercial, 
+     TEL1, 
+     TEL2, 
+     CEL1, 
+     TEL3, 
+     FAX1, 
+     TEL4, 
+     INT1, 
+     OTR1, 
+     CEL2, 
+     CON1
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_AGENCIAS.qvd] (qvd);
+///$tab Registro
+Registro:
+NoConcatenate
+LOAD 
+	 Titular_Solicitud, 
+     ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     FechaInicial_Solicitud							AS %ID_FechaI_Solicitud, 
+     Usuario_Solicitud, 
+     Dpto_Solicitud, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Usuario_Auditoria, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     Proyecto_Solicitud, 
+     Mail_1_Solicitud, 
+     Mail_2_Solicitud, 
+     Mail_3_Solicitud, 
+     Codigo_Solicitud, 
+     Valor_Solicitud, 
+     Flag_Reingreso,
+     Flag_MedidaCautelar, 
+     AbogadoPat_Solicitud, 
+     AbogadoAca_Solicitud, 
+     Tribunal_Solicitud, 
+     Auto_Solicitud, 
+//     Flag_NotaImpresa, 
+//     FechaNotaImpresa, 
+//     Flag_EnVeraz, 
+//     FechaEnVeraz, 
+//     Flag_EnViaJudicial, 
+//     FechaViaJudicial, 
+     Dpto_TipoSolicitud, 
+     Dsc_Subtipo, 
+     Dsc_Cierre, 
+     Riesgo,
+     Prestacion,
+     Sector_Responsable,
+     Titular, 
+     Nro_Afiliado,
+     GrupoID,
+     GrupoNombre
+FROM [$(vG.TransformPath)\STG_AFILIADOS_03_C_INC_0810_REGISTRO.qvd] (qvd)
+WHERE (Dpto_Solicitud='LEGALES' AND Dpto_TipoSolicitud='LEGALES');
+
+
+Min_Fecha_Solicitud_tmp:
+NoConcatenate
+LOAD
+	min(%ID_FechaI_Solicitud)						AS MinFechaSolicitud
+Resident Registro;
+
+
+LET vFechaMinSolicitud = peek('MinFechaSolicitud');
+
+DROP Table Min_Fecha_Solicitud_tmp;
+///$tab Evolución Cápitas
+Evolucion_Capitas:
+NoConcatenate
+LOAD 
+	 Cantidad_Movimientos, 
+     TipoMovimiento, 
+//     Periodo,
+     Date('01/'&Mes&'/'&Año)			AS %ID_FechaI_Solicitud							
+FROM [$(vG.TransformPath)\STG_AFILIADOS_02_ALTASBAJASMENSUALES.qvd] (qvd)
+Where Date('01/'&Mes&'/'&Año) >= $(vFechaMinSolicitud);
+///$tab Geo Localidades
+Geo_Localidades:
+NoConcatenate
+LOAD 
+//	 ID_Pais, 
+     ID_GeoLocalidad, 
+//     Nom_Provincia, 
+     ZIP, 
+//     Nom_Localidad, 
+     Latitud_Localidad, 
+     Longitud_Localidad, 
+     ID_Localidad					AS ID_LocalidadAgencia
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_GEO_LOCALIDADES.qvd] (qvd);
+///$tab Tiempo
+Tiempo:
+NoConcatenate
+LOAD 
+	 %ID_Fecha						AS %ID_FechaI_Solicitud, 
+     Año, 
+     Semestre, 
+     Trimestre, 
+     Mes, 
+     PeriodoLargo, 
+     Periodo, 
+     DiaDeLaSemana, 
+     Semana, 
+     NumMes, 
+     NumDia, 
+     Dia, 
+     Ejercicio
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_TIEMPO.qvd] (qvd)
+where %ID_Fecha	>= $(vFechaMinSolicitud);
+///$tab Empresa
+Empresas:
+NoConcatenate
+LOAD 
+	 %ID_Empresa, 
+     ID_Empresa, 
+     Nom_Empresa, 
+     Dsc_Empresa, 
+     %ID_GrupoEmpresa, 
+     ID_TipoEmpresa, 
+     EstadoEmpresa
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_EMPRESAS.qvd] (qvd);
+///$tab Grupo Empresa
+Grupo_Empresa:
+NoConcatenate
+LOAD 
+	 %ID_GrupoEmpresa, 
+     ID_GrupoEmpresa, 
+     Nom_GrupoEmpresa, 
+     Dsc_GrupoEmpresa
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_GRUPO_EMPRESA.qvd] (qvd);
+///$tab Bandeja Deudas Legales
+Deudas:
+NoConcatenate
+LOAD 
+	 %ID_Afiliado,
+	 ID_Solicitud_Legales, 
+     Nro_Afiliado										AS Nro_Afiliado_Deuda,
+     F_Nota_Ult_Aviso, 
+     F_Comp_Pago_PreVeraz, 
+     F_En_Veraz, 
+     F_Comp_Pago_PreJudicial, 
+     F_En_Judiciales, 
+     F_Pago_Deuda, 
+     Obs_Nota, 
+     Importe_Actual, 
+     Importe_Abonado_TABLA,
+     Importe_Abonado,
+     Tipo_Deuda, 
+//     Titular_Solicitud,
+//     ID_TipoSolicitud, 
+     Fecha_Solicitud									AS Fecha_Solicitud_Deuda, 
+     FechaInicial_Solicitud								AS FechaInicial_Solicitud_Deuda, 
+//     Usuario_Solicitud								AS Usuario_Solicitud_Deuda, 
+//     Dpto_Solicitud, 
+//     Prioridad_Solicitud, 
+//     Estado_Solicitud, 
+//     Responsable_Solicitud, 
+//     FechaCierre_Solicitud, 
+//     Obs_Solicitud, 
+     Fecha_Auditoria									AS Fecha_Auditoria_Deuda, 
+     Usuario_Auditoria									AS Usuario_Auditoria_Deuda, 
+     FechaVencimiento_Solicitud							AS FechaVencimiento_Solicitud_Deuda, 
+     FechaNotaImpresa, 
+     FechaEnVeraz, 
+     FechaViaJudicial, 
+     Fecha_PreVeraz, 
+     Fecha_PreJudicial, 
+//     ID_Medio_Cobro, 
+//     Fecha_Cobro,  
+//     ID_Transaccion									AS ID_Transaccion_Deuda, 
+//     Nro_Cuotas,
+	 F_Rec_Nota_Veraz, 
+     Ctd_Solicitudes,
+     Correccion_Importe,
+     Estado_Deuda,
+     ID_Motivo_Rec_Veraz, 
+     Dsc_Motivo_Rec_Veraz,
+     Flag_CartaDocumento,
+     Flag_NotaVeraz,
+     F_Carta_Documento,
+     Motivo_Carta_Documento
+FROM [$(vG.TransformPath)\STG_AFILIADOS_04_BANDEJADEUDASLEGALES.qvd] (qvd);
+
+
+Left Join (Deudas)
+LOAD 
+	 ID_Solicitud										AS ID_Solicitud_Legales, 
+     Flag_Reingreso										AS Flag_Reingreso_Deuda
+FROM [$(vG.TransformPath)\STG_AFILIADOS_03_C_INC_0810_REGISTRO.qvd] (qvd);
+
+
+Min_Fecha_Solicitud_Deuda_tmp:
+NoConcatenate
+LOAD
+	min(FechaInicial_Solicitud_Deuda)					AS MinFechaSolicitud_Deuda
+Resident Deudas;
+
+
+LET vFechaMinSolicitudDeuda = peek('MinFechaSolicitud_Deuda');
+
+
+DROP Table Min_Fecha_Solicitud_Deuda_tmp;
+
+
+Deuda_Original:
+NoConcatenate
+LOAD Distinct
+	Nro_Afiliado,
+	subfield(Nro_Afiliado,'/',1)						AS ID_Entidad
+FROM [$(vG.TransformPath)\STG_AFILIADOS_04_BANDEJADEUDASLEGALES.qvd] (qvd)
+Where F_Pago_Deuda='N';
+
+
+Left Join(Deuda_Original)
+LOAD 
+	 ID_Entidad, 
+     Periodo_Saldo, 
+     Periodo_Incob, 
+     Importe_Original
+FROM [$(vG.TransformPath)\STG_AFILIADOS_02_DEUDA_ORIGINAL_LEGALES.qvd] (qvd);
+///$tab Tiempo Legales
+Tiempo_Legales:
+NoConcatenate
+LOAD 
+	 %ID_Fecha						AS FechaInicial_Solicitud_Deuda, 
+     Año							AS Año_Solicitud_Deuda, 
+     Semestre						AS Semestre_Solicitud_Deuda, 
+     Trimestre						AS Trimestre_Solicitud_Deuda, 
+     Mes							AS Mes_Solicitud_Deuda, 
+     PeriodoLargo					AS PeriodoLargo_Solicitud_Deuda, 
+     Periodo						AS Periodo_Solicitud_Deuda, 
+//     DiaDeLaSemana, 
+//     Semana, 
+     NumMes							AS NumMes_Solicitud_Deuda, 
+     NumDia							AS NumDia_Solicitud_Deuda, 
+     Dia							AS Dia_Solicitud_Deuda, 
+     Ejercicio						AS Ejercicio_Solicitud_Deuda
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_TIEMPO.qvd] (qvd)
+Where %ID_Fecha >= $(vFechaMinSolicitudDeuda);
+///$tab Score
+Score_GF:
+NoConcatenate
+LOAD
+	 subfield(Nro_Afiliado,'/',1)				AS %ID_GrupoFamiliar, 
+//     ID_Afiliado, 
+//     Apellido, 
+//     Nombre, 
+     if(Score='C',1,
+     	if(Score='B',2,3))						AS Score, 
+     date(Fecha_Proceso,'DD/MM/YYYY')			AS Score_FechaProceso, 
+     Rentabilidad, 
+     EdadMaxima, 
+     EventoMedicoExclusion, 
+     AfiliadoEstado//, 
+//     Usuario, 
+//     Fecha
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_C_HIST_SCORE.qvd] (qvd);
+
+///$tab Solicitudes Alta
+Falseamientos_DDJJ:
+NoConcatenate
+LOAD Distinct
+	Nro_Afiliado
+Resident Registro
+Where ID_TipoSolicitud='TL_BAJA_FALSEAMIENTO_DDJJ' or ID_TipoSolicitud='FALSEAMIENTO DE DDJJ';
+
+
+Left Join (Falseamientos_DDJJ)
+LOAD
+	 NroAfiliado						AS Nro_Afiliado,
+	 date(Fecha,'DD/MM/YYYY')			AS Fecha_Alta,
+	 ID_Promotor, 
+     Canal,  
+     OrganizadorCompleto,  
+     Referido, 
+     ID_Organizador, 
+     CanalOriginal
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_MOVIMIENTOSALTABAJA.qvd] (qvd)
+Where TipoMovimiento='ALTA';

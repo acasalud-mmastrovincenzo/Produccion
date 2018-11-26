@@ -1,0 +1,339 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab Afiliados
+//// DESARROLLADO POR: FBURLON - Fecha de Creación: 17/17/2018.
+//// OBJETIVO: GENERAR UN UNICO QVD CON LOS DATOS COMPLETOS DE AFILIADOS.
+
+
+LET vL.QVD = 'STG_GENERAL_01_SA_AFILIADOS';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD 
+	 SubField(CODIGO,'/',1)							as GruponNro,
+	 CODIGO											as AfiliadoNro, 
+     APELLIDOS										as Apellido, 
+     NOMBRES										as Nombre,
+     Trim(APELLIDOS) & ' ' & Trim(NOMBRES) 			AS AfiliadoNombre, 
+     DATE(FECHA_NACIMIENTO, 'DD/MM/YYYY')			as FechaNacimiento, 
+     AGE(TODAY(),FECHA_NACIMIENTO)					as Edad,
+     Floor(AGE(TODAY(),FECHA_NACIMIENTO), 10)		as GrupoEdad,
+     SEXO											as Sexo, 
+     DEL_OS_CODIGO									AS AgenciaID, 
+//   DEL_OS_OSOC_CODIGO, 
+     ESTADO_CIVIL									as EstadoCivil, 
+     DATE(FECHA_ALTA, 'DD/MM/YYYY')					as FechaAlta, 
+     DATE(FECHA_ALTA_ADMINISTRATIVA, 'DD/MM/YYYY')	as FechaAltaAdmin,
+     AGE(TODAY(),FECHA_ALTA_ADMINISTRATIVA)			as AntigAños,
+     MOTIVO_DE_BAJA									as MotivoBaja, 
+     DISCAPACITADO									as Discapacitado, 
+     ESTADO											as Estado, 
+     CUIT											as Cuit, 
+     ANTIGUEDAD_RECONOCIDA							as AntiguedadReconocida, 
+//   TB_CODIGO, 
+     OBSERVACIONES									as Observaciones, 
+//   OSOC_CODIGO_OS_ANTERIOR, 
+//   PAIS_CODIGO, 
+     FECHA_VIGENCIA									as FechaVigencia, 
+//     AFI_AFI_ID										as AfiAfiID, 
+     If(AFI_TYPE='TIT' AND IsNull(PAR_CODIGO), 
+     	'TIT', PAR_CODIGO)							as ParentescoID, 
+     APORTA											as Aporta, 
+     ADHERENTE										as Adherente, 
+//     AA1_CODIGO, 
+//     AA2_CODIGO, 
+//     AA3_CODIGO, 
+//     AA4_CODIGO, 
+     ACTI_CODIGO									as ActividadID, 
+     AA_CODIGO										as Segmento, 
+     SUC_EMP_EMPL_EMPL_ID							AS EmpresaID, 
+//     CATAFI_CODIGO, 
+//     SITUACION_REVISTA, 
+//     SUC_EMP_CODIGO, 
+     OSOC_CODIGO									as ObraSocialID, 
+     PLAN_CODIGO									as PlanID, 
+     SUJETO_FACTURACION, 
+     AFI_ID											as AfiliadoID,
+     AFI_TYPE										as Flag_Titular, 
+     AFILIACION										as SegmentoTipo,
+	 MAIL											as Mail1,
+     1												as Contador
+//     REFERENCIA_EXTERNA, 
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd] (qvd);
+
+
+// Seteo Variables de Lectura.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab Domicilios
+LET vL.QVD = 'STG_GENERAL_01_DOMICILIOS_AFILIADOS';
+
+
+$(vL.QVD):
+LOAD 
+	 DOMIAFI_ID								AS AfiliadoDomicilioID, 
+     LOC_LOC_ID								AS AfiliadoLocalidadID, 
+     AFI_AFI_ID								AS AfiliadoID, 
+     CALLE									AS AfiliadoCalle, 
+     NUMERO									AS AfiliadoNro, 
+     PISO									AS AfiliadoPiso, 
+     DPTO									AS AfiliadoDepartamento, 
+     OBSERVACIONES							AS AfiliadoDomicilioObs//, 
+//     REFERENCIA_EXTERNA
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOMICILIOS_AFILIADO.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 DOMIAFI_DOMIAFI_ID						AS AfiliadoDomicilioID, 
+     TD_CODIGO								AS AfiliadoDomicilioTipo
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOMIAFI_TD.qvd] (qvd);
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Teléfonos
+LET vL.QVD = 'STG_GENERAL_01_TELEFONOS_AFILIADOS';
+
+
+$(vL.QVD):
+LOAD 
+	 TELAFI_ID						AS AfiliadoTelefonoID,			 
+     TIPO							AS AfiliadoTelefonoTipo, 
+     NUMERO							AS AfiliadoTelefono, 
+     DOMIAFI_DOMIAFI_ID				AS AfiliadoDomicilioID
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TELEFONOS_AFILIADO.qvd] (qvd);
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Planes
+LET vL.QVD = 'STG_GENERAL_01_PLANES';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD
+	 CODIGO											AS PlanID, 
+     NOMBRE											AS Plan, 
+     DESCRIPCION									AS PlanDsc, 
+     FECHA_ACTIVACION								AS PlanFechaAlta, 
+     FECHA_BAJA										AS PlanFechaBaja, 
+     ESTADO											AS PlanEstado,	 
+     OBSERVACIONES									AS PlanObs, 
+     APL_CODIGO										AS PlanAgrupacionID, 
+//     RPRES_CODIGO, 
+     MPC_CODIGO										AS PlanModeloID//, 
+//     CODIGO_FINANCIERO, 
+//     REFERENCIA_EXTERNA
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PLANES_COBERTURA.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 CODIGO											AS PlanAgrupacionID, 
+//     NOMBRE, 
+     Capitalize(DESCRIPCION)						AS PlanAgrupacion//, 
+//     OBSERVACIONES, 
+//     CODIGO_FINANCIERO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AGRUPACIONES_PLANES.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD
+	 CODIGO											AS PlanModeloID, 
+     NOMBRE											AS PlanModelo, 
+//     DESCRIPCION, 
+     ESTADO											AS PlanModeloEstado//, 
+//     FECHA_ACTIVACION, 
+//     FECHA_BAJA, 
+//     OBSERVACIONES, 
+//     RPRES_CODIGO, 
+//     CODIGO_FINANCIERO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_MODELOS_PLANES_COBERTURA.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+//	 TDATMAE_CODIGO, 
+     MPC_CODIGO										AS PlanModeloID, 
+     if(VALOR='NEW_INTEGRAL','INTEGRAL',VALOR)		AS PlanCredencial
+//     OBSERVACIONES, 
+//     OBJETO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADIC_MOD_PLAN_COB.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+//	 TDATMAE_CODIGO, 
+     PLAN_CODIGO									AS PlanID, 
+     VALOR											AS PlanCoberturaMedicamento//, 
+//     OBSERVACIONES, 
+//     OBJETO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADIC_PLAN_COB.qvd] (qvd)
+Where TDATMAE_CODIGO = '%MED';
+
+
+Left Join ($(vL.QVD))
+LOAD 
+//	 TDATMAE_CODIGO, 
+     PLAN_CODIGO									AS PlanID, 
+     VALOR											AS PlanCoberturaOdontologia//, 
+//     OBSERVACIONES, 
+//     OBJETO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADIC_PLAN_COB.qvd] (qvd)
+Where TDATMAE_CODIGO = 'ODON';
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Parentesco
+LET vL.QVD = 'STG_GENERAL_01_PARENTESCO';
+
+
+$(vL.QVD):
+LOAD
+	 CODIGO						AS ParentescoID, 
+     Capitalize(NOMBRE)			AS Parentesco//, 
+//     DESCRIPCION
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PARENTESCOS.qvd] (qvd);
+
+
+Concatenate($(vL.QVD))
+LOAD * Inline [
+	ParentescoID, Parentesco
+	'TIT', 'Titular'];
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Obra Social
+LET vL.QVD = 'STG_GENERAL_01_OBRA_SOCIAL';
+
+
+$(vL.QVD):
+LOAD 
+	 CODIGO													AS ObraSocialID, 
+     NOMBRE													AS ObraSocial, 
+     DESCRIPCION											AS ObraSocialDsc, 
+     ESTADO													AS Estado, 
+     Date(FECHA_ACTIVACION,'DD/MM/YYYY')					AS FechaActivacion, 
+     CODIGO_RNOS											AS RNOS_ID, 
+     CUIT													AS Cuit, 
+     OBSERVACIONES											AS Observaciones, 
+//     CODIGO_FINANCIERO, 
+     OSOC_TYPE												AS ObraSocialTipoID, 
+     if(OSOC_TYPE='OSE','Externa',
+     	if(OSOC_TYPE='OSC','Cliente','Mandataria'))			AS ObraSocialTipo,
+     VDA_DRV												AS ObraSocialClaseID, 
+     AOS_CODIGO												AS ObraSocialAgrupacionID, 
+//     REFERENCIA_EXTERNA							AS ReferenciaExterna, 
+//     DEL_OS_OSOC_CODIGO, 
+     DEL_OS_CODIGO											AS AgenciaID, 
+     EMAIL													AS Email
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_OBRAS_SOCIALES.qvd] (qvd);
+
+
+Left Join ($(vL.QVD))
+LOAD 
+	 CODIGO													AS ObraSocialAgrupacionID, 
+     NOMBRE													AS ObraSocialAgrupacion, 
+     DESCRIPCION											AS ObraSocialAgrupacionDsc//, 
+//     OBSERVACIONES, 
+//     CODIGO_FINANCIERO, 
+//     REFERENCIA_FINANCIERA
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AGRUPACIONES_OBRA_SOCIAL.qvd] (qvd);
+
+
+
+Left Join ($(vL.QVD))
+LOAD 
+     NOMBRE													AS ObraSocialClase, 
+     DESCRIPCION											AS ObraSocialClaseDsc, 
+     DRV													AS ObraSocialClaseID
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Documentos
+LET vL.QVD = 'STG_GENERAL_01_DOCUMENTOS_AFILIADOS';
+
+
+$(vL.QVD):
+LOAD
+	 TDOC_TIPO							AS DocumentoTipo, 
+     NUMERO								AS DocumentoNro, 
+     AFI_AFI_ID							AS AfiliadoID
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOCUMENTOS_AFILIADO.qvd] (qvd);
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Mail
+LET vL.QVD = 'STG_GENERAL_01_MAIL_AFILIADOS';
+
+
+$(vL.QVD):
+LOAD
+//	 TDATMAE_CODIGO, 
+     AFI_AFI_ID						AS AfiliadoID, 
+     VALOR							AS Mail2//, 
+//     OBSERVACIONES, 
+//     OBJETO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DATOS_ADICIONAL_AFI.qvd] (qvd)
+Where TDATMAE_CODIGO = 'EM_S';
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'STG_GENERAL_01_DIMENSIONES'						AS Proceso,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

@@ -1,0 +1,204 @@
+﻿///$tab Main
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep='.';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='$ #.##0,00;$-#.##0,00';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD/MM/YYYY';
+SET TimestampFormat='DD/MM/YYYY hh:mm:ss[.fff]';
+SET MonthNames='Ene;Feb;Mar;Abr;May;Jun;Jul;Ago;Sep;Oct;Nov;Dic';
+SET DayNames='Lun;Mar;Mié;Jue;Vie;Sáb;Dom';
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET v_QVD = 'STG_AFILIADOS_02_EXPEDIENTES_LEGALES';
+
+
+$(v_QVD)_TMP:
+NoConcatenate
+LOAD Distinct
+	 Titular_Solicitud, 
+     ID_TipoSolicitud, 
+     Fecha_Solicitud, 
+     FechaInicial_Solicitud							AS %ID_FechaI_Solicitud, 
+     Usuario_Solicitud, 
+     Dpto_Solicitud, 
+     Prioridad_Solicitud, 
+     Estado_Solicitud, 
+     Responsable_Solicitud, 
+     FechaCierre_Solicitud, 
+     Obs_Solicitud, 
+     ID_Solicitud, 
+     Fecha_Auditoria, 
+     Usuario_Auditoria, 
+     FechaVencimiento_Solicitud, 
+     DptoResponsable_Solicitud, 
+     Proyecto_Solicitud, 
+     Mail_1_Solicitud, 
+     Mail_2_Solicitud, 
+     Mail_3_Solicitud, 
+     Codigo_Solicitud, 
+     Valor_Solicitud, 
+     Flag_Reingreso,
+     Flag_MedidaCautelar, 
+     AbogadoPat_Solicitud, 
+     AbogadoAca_Solicitud, 
+     Tribunal_Solicitud, 
+     Auto_Solicitud, 
+     Flag_NotaImpresa, 
+     FechaNotaImpresa, 
+     Flag_EnVeraz, 
+     FechaEnVeraz, 
+     Flag_EnViaJudicial, 
+     FechaViaJudicial, 
+     Dpto_TipoSolicitud, 
+     Dsc_Subtipo, 
+     Dsc_Cierre, 
+     Riesgo,
+     Prestacion,
+     Sector_Responsable,
+     Titular, 
+     Nro_Afiliado,
+     GrupoID,
+     GrupoNombre
+FROM [..\..\..\STG\GestionAfiliado\QVD\STG_AFILIADOS_01_C_INC_0810_REGISTRO.qvd] (qvd)
+WHERE (Dpto_Solicitud='LEGALES' AND Dpto_TipoSolicitud='LEGALES');
+
+
+// Ordeno la tabla por afiliado y fecha para tener los incidentes cronológicamente.
+$(v_QVD):
+NoConcatenate
+LOAD
+	*
+Resident $(v_QVD)_TMP
+Order By Nro_Afiliado, Fecha_Solicitud;
+
+
+DROP Table $(v_QVD)_TMP;
+RENAME Table $(v_QVD) to $(v_QVD)_TMP;
+
+
+// Genero las diferentes clasificaciones de Reclamo y Escalada
+$(v_QVD):
+NoConcatenate
+LOAD
+	*,
+	IF(Match(ID_TipoSolicitud,'RECLAMO POR COBERTURA MÉDICA',
+		'RESOLUCIÓN 075/98 SSS_SALUD - COBERTURA')>=1,'Reclamo cobertura',
+			if(Match(ID_TipoSolicitud,'ACCIÓN AMPARO POR COBERTURA',
+			'DEFENSA DE CONSUMIDOR POR COBERTURA',
+			'DENUNCIA ANTE LA SSSALUD POR COBERTURA')>=1,'Escalada cobertura',null())) as Reclamo_Cobertura,
+	IF(Match(ID_TipoSolicitud,'RECLAMO POR AFILIACIONES','FALSEAMIENTO DE DDJJ',
+		'RECLAMO POR DEUDA','NOTIFICACIÓN VALORIZACIÓN LEY','RESOLUCIÓN 075/98 SSS_SALUD - AFILIACIONES')>=1,'Reclamo afiliación',
+			if(Match(ID_TipoSolicitud,'ACCIÓN AMPARO POR AFILIACIONES',
+			'DEFENSA DE CONSUMIDOR POR AFILIACIONES',
+			'DENUNCIA ANTE LA SSSALUD POR AFILIACIONES')>=1,'Escalada afiliación',null())) as Reclamo_Afiliacion
+Resident $(v_QVD)_TMP;
+
+
+DROP Table $(v_QVD)_TMP;
+
+
+// Genero el contador para los reclamos por COBERTURA
+$(v_QVD)_TMP:
+NoConcatenate
+LOAD
+	*
+Resident $(v_QVD)
+Where not IsNull(Reclamo_Cobertura)
+Order by Nro_Afiliado, Fecha_Solicitud;
+
+
+$(v_QVD)_TMP2:
+NoConcatenate
+LOAD
+	*,
+	if(Nro_Afiliado=Previous(Nro_Afiliado),
+		if(Reclamo_Cobertura='Escalada cobertura',
+			if(Previous(Reclamo_Cobertura)='Reclamo cobertura',1,
+				if(Previous(Reclamo_Cobertura)='Escalada cobertura',2,null()))))	as Escalada_Cobertura
+Resident $(v_QVD)_TMP;
+
+
+DROP Table $(v_QVD)_TMP;
+
+
+Left Join ($(v_QVD))
+LOAD
+	ID_Solicitud,
+	Escalada_Cobertura
+Resident $(v_QVD)_TMP2;
+
+
+DROP Table $(v_QVD)_TMP2;
+
+
+// Genero el contador para los reclamos por AFILIACIONES
+$(v_QVD)_TMP:
+NoConcatenate
+LOAD
+	*
+Resident $(v_QVD)
+Where not IsNull(Reclamo_Afiliacion)
+Order by Nro_Afiliado, Fecha_Solicitud;
+
+
+$(v_QVD)_TMP2:
+NoConcatenate
+LOAD
+	*,
+	if(Nro_Afiliado=Previous(Nro_Afiliado),
+		if(Reclamo_Afiliacion='Escalada afiliación',
+			if(Previous(Reclamo_Afiliacion)='Reclamo afiliación',1,
+				if(Previous(Reclamo_Afiliacion)='Escalada afiliación',2,null()))))	as Escalada_Afiliacion
+Resident $(v_QVD)_TMP;
+
+
+DROP Table $(v_QVD)_TMP;
+
+
+Left Join ($(v_QVD))
+LOAD
+	ID_Solicitud,
+	Escalada_Afiliacion
+Resident $(v_QVD)_TMP2;
+
+
+DROP Table $(v_QVD)_TMP2;
+
+EXIT Script;
+///$tab DURACION
+LET v_QRegistros = NoOfRows('$(v_QVD)');
+LET v_QCampos = NoOfFields('$(v_QVD)');
+
+
+STORE $(v_QVD) into [..\QVD\$(v_QVD).qvd] (qvd);
+DROP Table $(v_QVD);
+
+
+
+Left Join (TIEMPO_RECARGA)
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(v_QRegistros)'									AS QRegistros,
+	'$(v_QCampos)'										AS QCampos,
+//	'$(v_Tabla)'										AS Tabla,
+	'$(v_QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

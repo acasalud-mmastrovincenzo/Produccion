@@ -1,0 +1,77 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'HBI_EXT_AFI_MES';
+LET vL.Base = 'HBI';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+
+// Seteo la fecha de lectura incremental.
+LET vL.FechaDesde = MakeDate(year(Today() - 90), Month(Today() - 90));
+
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Incremental';
+
+// Levanto los datos de los últimos 3 meses.
+$(vL.QVD):
+LOAD *,
+	MES & '|' & AFI_ID		AS %K_ID_MES_AFI;
+SQL SELECT *
+FROM $(vL.Base).$(vL.Tabla)
+WHERE MES >= to_date('$(vL.FechaDesde)', 'dd/mm/yyyy')
+and SUC_EMP_EMPL_EMPL_ID <> 600897;  //Empresa 600897: Ingreso Solicitudes Asesores Comerciales
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+Concatenate($(vL.QVD))
+LOAD *
+FROM $(vG.ExtractPath)\$(vL.QVD).qvd (qvd)
+WHERE Not Exists (%K_ID_MES_AFI);
+
+
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd); 
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

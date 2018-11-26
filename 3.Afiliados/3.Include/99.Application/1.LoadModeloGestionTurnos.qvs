@@ -1,0 +1,255 @@
+//  ____________________________________________________________________________
+// |   Deployment Framework SUBVariable 2.LoadVariableCSV.qvs    
+// | SUB routine used for loading variables stored in csv files into the QlikView Script
+// | Execute (Call) the Sub in the script, by first include the script in the beginning:
+// | $(Include=$(vG.SubPath)\2.LoadVariableCSV.qvs);
+// | and then use:
+// | call LoadVariableCSV('CSV_My Tables.csv', ,Optional vL.SpecificVariable or Tag, Optional vL.QDF.ContainerMapMode, Optional Use Comments as Variables, Optional Specify table name, will keep the table after load);
+// | Mandatory switch is csv path and file 'CSV_My Tables.csv'
+// | By using vL.QDF.ContainerMapMode the csv will be treated as an ContainerMap.csv file
+// | And Container base Variables will be loaded based on ContainerMap.csv
+
+
+
+SUB LoadModeloGestionTurnos;
+
+Call LCGV ('MySQL', 'ExtractPath');
+Call LCGV ('API', 'ExtractPath');
+
+// Levanto los Turnos.
+Turnos_Tmp:
+LOAD 
+	 IdTur, 
+     IdCla, 
+     NroTur, 
+     ApeTur, 
+     NomTur, 
+     IdTpoDoc, 
+     NroDocTur, 
+     FecHorTur,
+     Date#(MakeDate(Year(FecHorTur), Month(FecHorTur), Day(FecHorTur)),'DD/MM/YYYY') 	AS FechaTurno,   
+     MakeDate(Year(FecHorTur), Month(FecHorTur), Day(FecHorTur)) 						AS %ID_Fecha,  
+     Year(FecHorTur) 																	AS AñoTurno, 
+	 Month(FecHorTur)																	AS MesTurno,
+	 Year(FecHorTur) * 100 + Month(FecHorTur)											AS PeriodoTurno,
+     IdSec, 
+     ObsTur, 
+     IdSex, 
+     TieAteTur, 
+     FinAteTur,
+     //Interval(FinAteTur - FecHorTur, 'HH:MM') AS Dif,
+//     FinAteTur - FecHorTur 			AS Dif,
+//     Floor(FinAteTur - FecHorTur) 	AS ParteEntera,
+//     Frac(FinAteTur - FecHorTur) 	AS ParteDecimal,
+//     Floor(FinAteTur - FecHorTur) * 24 * 60 AS MinParteEntera,
+     IdBox
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_turnos.qvd (qvd);
+
+
+// Levanto las Llamadas.
+TurnosMonitores:
+LOAD 
+	 IdTur,
+	 IdTM, 
+     DscNroTM, 
+     DscBoxTM, 
+     FecHorLlaTM,
+     Date#(MakeDate(Year(FecHorLlaTM),Month(FecHorLlaTM),Day(FecHorLlaTM)),'DD/MM/YYYY') 	AS FechaLlaTM, 
+	 Time(FecHorLlaTM)																		AS HoraLlaTM,      
+     IdCar, 
+     EdoTM
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_turnosmonitores.qvd (qvd);
+
+
+// Filtro la Hora de la Última llamada de cada Turno, para luego calcular el tiempo de espera.
+INNER JOIN (TurnosMonitores)
+LOAD 
+	 IdTur,	
+     Max(IdTM)				AS IdTM
+Resident TurnosMonitores
+Group By IdTur;    
+     
+
+// Llevo a la Tabla Turnos la Fecha y Hora de la Llamada para luego Calcular el Tiempo de Espera de cada Persona.
+LEFT JOIN (Turnos_Tmp)
+LOAD    
+	IdTur, 
+	FecHorLlaTM				AS FechaHoraLLamada
+Resident TurnosMonitores;
+
+
+// Calculo el Tiempo de Espera.
+Turnos:
+NoConcatenate
+LOAD 
+	 *,
+	 Floor(FechaHoraLLamada - FecHorTur) 															AS ParteEntera,
+     Frac(FechaHoraLLamada - FecHorTur) 															AS ParteDecimal,
+     Floor(FechaHoraLLamada - FecHorTur) * 24 * 60 													AS MinParteEntera,    
+     Minute(Frac(FechaHoraLLamada - FecHorTur)) 													AS MinParteDecimal,
+     (Floor(FechaHoraLLamada - FecHorTur) * 24 * 60) + Minute(Frac(FechaHoraLLamada - FecHorTur))	AS MinutosEspera     
+Resident Turnos_Tmp;
+
+
+DROP Table Turnos_Tmp;
+
+
+Usuarios:
+NoConcatenate
+LOAD
+    IdBox,
+    FechaInicio,
+    FechaFin,
+    Usuario
+FROM $(vG.APIExtractPath)\DATA_API_GOOGLEDRIVE_USUARIOS_TURNERO.qvd (qvd);
+
+
+Inner Join (Turnos)
+IntervalMatch (FechaTurno,IdBox)
+LOAD
+    FechaInicio,
+    FechaFin,
+    IdBox
+Resident Usuarios;
+
+
+Left Join (Turnos)
+LOAD
+	IdBox,
+    FechaInicio,
+    FechaFin,
+    Usuario
+Resident Usuarios;
+
+
+DROP Table Usuarios;
+DROP Fields FechaInicio, FechaFin from Turnos;
+
+
+Usuarios_Monitores:
+NoConcatenate
+LOAD
+    IdBox 					as DscBoxTM,
+    FechaInicio,
+    FechaFin,
+    Usuario					as UsuarioTM
+FROM $(vG.APIExtractPath)\DATA_API_GOOGLEDRIVE_USUARIOS_TURNERO.qvd (qvd);
+
+
+Inner Join (TurnosMonitores)
+IntervalMatch (FechaLlaTM,DscBoxTM)
+LOAD
+	FechaInicio,
+    FechaFin,
+    DscBoxTM
+Resident Usuarios_Monitores;
+
+
+Left Join (TurnosMonitores)
+LOAD
+	DscBoxTM,
+    FechaInicio,
+    FechaFin,
+    UsuarioTM
+Resident Usuarios_Monitores;
+
+
+DROP Table Usuarios_Monitores;
+DROP Fields FechaInicio, FechaFin from TurnosMonitores;
+
+//////////////////////////////////////////////////////////
+//				 DIMENSIONES
+/////////////////////////////////////////////////////////
+
+Boxes:
+LOAD 
+	 IdBox, 
+     DscBox
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_boxes.qvd (qvd);
+
+
+//BoxesColas:
+//SQL SELECT *
+//FROM turnos.boxescolas;
+
+
+TiposDocumentos:
+LOAD 
+	 IdTpoDoc, 
+     DscTpoDoc
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_tpodocumento.qvd (qvd);
+
+
+Sectores:
+LOAD 
+	 IdSec, 
+     If(IsNull(DscSec) OR DscSec = '' OR DscSec = ' ', 'Sector Sin Desc.', DscSec) 		AS DscSec, 
+     If(IsNull(UbiSec) OR UbiSec = '' OR UbiSec = ' ', 'Sector sin Ubicac.', UbiSec) 	AS UbiSec, 
+//     IdCla, 
+     CodSec, 
+     UltNroEmiSec, 
+     EdoSec
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_sectores.qvd (qvd);
+
+
+Sexos:
+LOAD 
+	 IdSex, 
+     DscSex
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_sexos.qvd (qvd);
+
+
+Colas:
+LOAD 
+	 IdCla, 
+     DscCla, 
+     UltNroLlaCla
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_colas.qvd (qvd);
+
+
+Marquesinas:
+LOAD IdMar, 
+     IdCar, 
+     DscMar
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_marquesinas.qvd (qvd);
+
+
+Imagenes:
+LOAD IdImg, 
+     IdCar, 
+     ArcImg
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_imagenes.qvd (qvd);
+
+
+Carteles:
+LOAD IdCar, 
+     IPCar, 
+     PueCar
+FROM $(vG.MySQLExtractPath)\DATA_MYSQL_turnos_carteles.qvd (qvd);
+
+
+Call CalendarGenCustom('%ID_Fecha','Calendario',6);
+//Call CalendarGen('%ID_Fecha','Calendario',6);
+
+/*
+Calendario:
+LOAD 
+	 %ID_Fecha,
+	 %ID_Fecha		AS Fecha, 
+     Año, 
+     Semestre, 
+     Trimestre, 
+     Mes, 
+     PeriodoLargo, 
+     Periodo, 
+     DiaDeLaSemana, 
+     Semana, 
+     NumMes, 
+     NumDia, 
+     Dia, 
+     Ejercicio
+FROM [..\..\..\STG\GestionAfiliado\QVD\STG_AFILIADOS_01_TIEMPO.qvd (qvd)
+Where Exists (Fecha,%ID_Fecha);
+*/
+
+end sub

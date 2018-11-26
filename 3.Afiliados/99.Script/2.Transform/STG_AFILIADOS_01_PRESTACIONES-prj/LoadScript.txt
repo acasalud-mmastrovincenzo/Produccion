@@ -1,0 +1,693 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+// DESARROLLADO POR: MMASTROVICENZO - Fecha de Creación: 13/07/2018
+// OBJETIVO: 
+//
+
+LET vL.QVD = 'STG_AFILIADOS_01_PRESTACIONES';
+
+
+$(vL.QVD):
+LOAD
+	PCA_ID,
+	AFI_AFI_ID						as AFI_ID,	
+	REI_REI_ID						as ID,
+	CANTIDAD						as CANTIDAD,
+	NOM_PRESTACION_PDH				as COD_PRESTACION,
+	DESCRIPCION						as NOM_PRESTACION,
+	CONTEXTO,
+	DEL_OS_CODIGO 					as AGENCIA, 
+	FECHA_GENERACION,
+	FECHA_REALIZACION, 
+	DIAG_CODIGO						as CODIGO_DIAG, 
+	VDA_DRV_ESTADO_AUDITORIA		as ESTADO, 
+	GRUPO_AUTORIZPREV				as COD_GRUPO, 
+	GRUPO_LIQPRES
+FROM 
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PRESTACIONES_CA.qvd] (qvd);
+
+
+RENAME Table $(vL.QVD) to prestaciones_temp;
+
+NoConcatenate
+$(vL.QVD):
+LOAD
+	*
+//	PCA_ID,
+//	AFI_ID,	
+//	REI_ID,
+//	CANTIDAD,
+//	COD_PRESTACION,
+//	NOM_PRESTACION,
+//	CONTEXTO,
+//	AGENCIA, 
+//	FECHA_GENERACION,
+//	FECHA_REALIZACION, 
+//	CODIGO_DIAG, 
+//	ESTADO, 
+//	COD_GRUPO, 
+//	GRUPO_LIQPRES
+resident prestaciones_temp
+WHERE 	FECHA_GENERACION >= date#(20130101,'YYYYMMDD')  AND not isnull(ID);
+
+DROP Table prestaciones_temp;
+
+
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	GRUPO				as GRUPO_LIQPRES,
+	DESCRIPCION 		as NOMBRE_GRUPO	
+FROM 
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_GRUPOS_PRESTACIONES.qvd] (qvd);
+
+drop field GRUPO_LIQPRES;
+
+LEFT JOIN ($(vL.QVD))
+LOAD
+	CODIGO				as CODIGO_DIAG,
+	DESCRIPCION 		as NOMBRE_DIAG 
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DIAGNOSTICOS.qvd] (qvd);
+
+
+INNER JOIN ($(vL.QVD))
+LOAD
+	REI_ID					as ID,
+	'REI'					as TIPO,    
+	1 						as REI,
+	USER_INSERT 			as USUARIO,
+	EFE_CODIGO_REALIZADOR 	as CODIGO_EFECTOR 
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_REINTEGROS.qvd]//[C:\Qlikview_bi\Control de Gestion\Bases en QVD\Extraer\SA_REINTEGROS.qvd] 
+(qvd);
+
+
+INNER JOIN ($(vL.QVD))
+LOAD
+	NOMBRE 					as NOMBRE_EFECTOR,
+	CODIGO					as CODIGO_EFECTOR
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EFECTORES.qvd] (qvd);
+
+
+INNER JOIN ($(vL.QVD))
+LOAD
+	CODIGO						as AGENCIA,
+	ATRIBUTO_USUARIO_5 			as AGEDEP, 
+	ATRIBUTO_USUARIO_1 			as AGETIPO
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DELEGACIONES_OS.qvd] (qvd);	
+
+
+INNER JOIN ($(vL.QVD))
+LOAD
+	AFI_ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd] (qvd);	
+
+
+
+
+
+NoConcatenate
+Tabla2:
+NoConcatenate
+LOAD 
+	PCA_ID,
+	AFI_AFI_ID								as AFI_ID,
+	APR_APR_ID								as ID,
+	CANTIDAD								as CANTIDAD,
+	NOM_PRESTACION_PDH						as COD_PRESTACION,
+	DESCRIPCION								as NOM_PRESTACION,
+	CONTEXTO,
+	DEL_OS_CODIGO 							as AGENCIA,
+	FECHA_REALIZACION, 
+	DIAG_CODIGO 							as CODIGO_DIAG,	
+	VDA_DRV_ESTADO_AUDITORIA 				as ESTADO, 
+	GRUPO_AUTORIZPREV 						as COD_GRUPO, 
+	1										as REI,
+	EFE_CODIGO_REALIZADOR,
+	EFE_CODIGO_PRESCRIPTOR					as CODIGO_PRESCRIPTOR								 
+FROM 
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PRESTACIONES_CA.qvd] (qvd);
+
+
+RENAME Table Tabla2 to Tabla2_temp;
+
+NoConcatenate
+Tabla2:
+LOAD
+	*,
+	IF(CONTEXTO='A','APR-A','APR-I')  		as TIPO
+Resident Tabla2_temp
+WHERE match(CONTEXTO,'A','I');
+
+DROP Table Tabla2_temp;
+
+
+NoConcatenate
+Tabla2_Temp:
+LOAD 
+	APR_APR_ID			as ID,
+	FECHA				as FECHA_GENERACION,
+	USERNAME 			as USUARIO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_LOGS.qvd]
+//[C:\Qlikview_bi\Control de Gestion\Bases en QVD\Extraer\C_LOGS.qvd] 
+(qvd);
+
+
+Inner Join (Tabla2)
+LOAD
+	ID,
+	FECHA_GENERACION,
+	USUARIO
+Resident Tabla2_Temp
+WHERE 
+	FECHA_GENERACION >= date#(20130101,'YYYYMMDD')  
+	AND NOT isnull(USUARIO) 
+	AND USUARIO <> 'CAWS';
+
+DROP Table Tabla2_Temp;
+
+
+LEFT JOIN (Tabla2)	
+LOAD
+	CODIGO					as EFE_CODIGO_REALIZADOR,
+	NOMBRE 					as NOMBRE_EFECTOR	
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EFECTORES.qvd] (qvd);
+
+DROP Field EFE_CODIGO_REALIZADOR;
+
+LEFT JOIN (Tabla2)	
+LOAD
+	CODIGO					as CODIGO_PRESCRIPTOR,
+	NOMBRE 					as NOMBRE_PRESCRIPTOR	
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EFECTORES.qvd] (qvd);
+
+INNER JOIN (Tabla2)
+LOAD 
+	GRUPO				as COD_GRUPO,				
+	DESCRIPCION 		as NOMBRE_GRUPO	
+FROM 
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_GRUPOS_PRESTACIONES.qvd] (qvd);
+
+
+INNER JOIN (Tabla2)
+LOAD
+	PRES_EFE_CODIGO		as CODIGO_EFECTOR,
+	APR_ID				as ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AUTORIZACIONES_PREVIAS.qvd] (qvd)
+WHERE VDA_DRV_ESTADO = 'CA-----E';    						
+
+//DROP Field CODIGO_EFECTOR;
+
+INNER JOIN (Tabla2)
+LOAD
+	AFI_ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd] (qvd);
+
+
+INNER JOIN (Tabla2)
+LOAD
+	CODIGO						as AGENCIA,
+	ATRIBUTO_USUARIO_5 			as AGEDEP, 
+	ATRIBUTO_USUARIO_1 			as AGETIPO	
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DELEGACIONES_OS.qvd] (qvd);
+
+
+INNER JOIN (Tabla2)
+LOAD
+	CODIGO				as CODIGO_DIAG,
+	DESCRIPCION 		as NOMBRE_DIAG	
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DIAGNOSTICOS.qvd] (qvd);
+
+
+Concatenate($(vL.QVD))
+load *
+Resident Tabla2;
+
+DROP Table Tabla2;
+
+
+NoConcatenate
+Tabla3:
+NoConcatenate
+LOAD
+	APR_APR_ID				as APR_ID,
+	TEM_CODIGO,
+	DEL_OS_CODIGO			as AGENCIA,
+	DIAG_CODIGO				as CODIGO_DIAG,
+	EFE_CODIGO_SOLIC		as CODIGO_EFECTOR,
+	AFI_AFI_ID				as AFI_ID,
+	EM_ID					as ID,		
+	VDA_DRV 				as ESTADO,
+	NOM_PRESTACION			as EM_NOM_PRESTACION,
+	DESCRIPCION				as EM_DESCRIPCION,
+	FECHA_INICIO			as EM_FECHA_INICIO,
+	1						as REI
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EVENTOS_MEDICOS.qvd] (qvd); 
+
+
+LEFT JOIN(Tabla3)
+LOAD
+	APR_APR_ID					as APR_ID,
+	GRUPO_AUTORIZPREV,
+	PCA_ID						as PRESTACIONES_PCA_ID,
+	CANTIDAD					as PRESTACIONES_CANTIDAD,
+	NOM_PRESTACION_PDH,
+	DESCRIPCION					as PRESTACIONES_DESCRIPCION,
+	CONTEXTO					as PRESTACIONES_CONTEXTO,
+	FECHA_REALIZACION			as PRESTACIONES_FECHA_REALIZACION
+FROM 
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PRESTACIONES_CA.qvd] (qvd);
+
+DROP Field APR_ID;
+
+LEFT JOIN(Tabla3)
+LOAD
+	GRUPO				as GRUPO_AUTORIZPREV,
+	DESCRIPCION 		as GRUPOS_PRESTACIONES_DESCRIPCION	
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_GRUPOS_PRESTACIONES.qvd] (qvd);
+
+
+LEFT JOIN (Tabla3)
+LOAD
+	CODIGO					as CODIGO_EFECTOR,
+	NOMBRE 					as NOMBRE_EFECTOR	
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_EFECTORES.qvd] (qvd);
+
+
+INNER JOIN(Tabla3)
+LOAD
+	CODIGO						as AGENCIA,
+	ATRIBUTO_USUARIO_5 			as AGEDEP, 
+	ATRIBUTO_USUARIO_1 			as AGETIPO
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DELEGACIONES_OS.qvd] (qvd);
+
+
+INNER JOIN (Tabla3)
+LOAD
+	CODIGO				as CODIGO_DIAG,
+	DESCRIPCION 		as NOMBRE_DIAG 
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DIAGNOSTICOS.qvd] (qvd);
+
+
+INNER JOIN (Tabla3)
+LOAD
+	AFI_ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd] (qvd);
+
+NoConcatenate
+Tabla3_Temp:
+LOAD 
+	EM_EM_ID			as ID,
+	FECHA				as FECHA_GENERACION,	
+	USERNAME 			as USUARIO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_LOGS.qvd] (qvd); 
+
+
+INNER JOIN (Tabla3)
+LOAD
+	ID,
+	FECHA_GENERACION,
+	USUARIO
+Resident Tabla3_Temp
+WHERE 
+	FECHA_GENERACION >= date#(20130101,'YYYYMMDD')  
+	AND NOT isnull(USUARIO) 
+	AND USUARIO <> 'CAWS';
+
+DROP Table Tabla3_Temp;
+
+
+INNER JOIN(Tabla3)
+LOAD
+	CODIGO					as TEM_CODIGO,
+	DE_SEGUIMIENTO
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_TIPOS_EM.qvd] (qvd)
+WHERE match(DE_SEGUIMIENTO,'F','V');
+
+DROP Field TEM_CODIGO;
+
+Rename Table Tabla3 to Tabla3Temp;
+
+Tabla3:
+LOAD
+	*,
+	'EMI'									as TIPO,
+	PRESTACIONES_PCA_ID						as PCA_ID,
+	PRESTACIONES_CANTIDAD 					as CANTIDAD,
+	NOM_PRESTACION_PDH						as COD_PRESTACION,
+	PRESTACIONES_DESCRIPCION 				as NOM_PRESTACION,
+	PRESTACIONES_CONTEXTO					as CONTEXTO,
+	PRESTACIONES_FECHA_REALIZACION			as FECHA_REALIZACION,
+	GRUPO_AUTORIZPREV						as COD_GRUPO,
+	GRUPOS_PRESTACIONES_DESCRIPCION			as NOMBRE_GRUPO
+Resident Tabla3Temp
+WHERE  DE_SEGUIMIENTO = 'F';
+
+DROP Fields PRESTACIONES_PCA_ID, PRESTACIONES_CANTIDAD, NOM_PRESTACION_PDH, PRESTACIONES_DESCRIPCION, PRESTACIONES_CONTEXTO, PRESTACIONES_FECHA_REALIZACION, GRUPO_AUTORIZPREV, GRUPOS_PRESTACIONES_DESCRIPCION;
+
+Concatenate
+LOAD
+	*,
+	'EMS'					as TIPO,
+	0						as PCA_ID,
+	1 						as CANTIDAD,
+	EM_NOM_PRESTACION		as COD_PRESTACION,
+	EM_DESCRIPCION 			as NOM_PRESTACION,
+	'A'						as CONTEXTO,
+	EM_FECHA_INICIO			as FECHA_REALIZACION,
+	'SIN GRUPO'				as COD_GRUPO,
+	'SIN NOMBRE GRUPO'		as NOMBRE_GRUPO
+Resident Tabla3Temp
+WHERE  DE_SEGUIMIENTO = 'V';
+
+DROP Fields EM_NOM_PRESTACION, EM_DESCRIPCION, EM_FECHA_INICIO;
+DROP Field DE_SEGUIMIENTO;
+
+
+DROP table Tabla3Temp;
+
+Concatenate($(vL.QVD))
+load *
+Resident Tabla3;
+
+DROP Table Tabla3;
+
+
+NoConcatenate
+plan_cod_afi:
+LOAD Distinct
+	AFI_ID,
+	FECHA_GENERACION
+Resident $(vL.QVD);
+
+
+inner join(plan_cod_afi)
+LOAD 
+     AFI_ID, 
+     FECHA_VIGENCIA, 
+     FECHA_VIGENCIA_HASTA, 
+     PLAN_CODIGO,
+     DEL_OS_CODIGO   	as AGENCIA_SOCIO  
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_HIST_AFI.qvd]
+(qvd);
+
+RENAME Table plan_cod_afi to plan_cod_afi_temp;
+
+plan_cod_afi:
+LOAD
+	AFI_ID,
+	PLAN_CODIGO,
+	AGENCIA_SOCIO,
+	FECHA_GENERACION
+Resident plan_cod_afi_temp
+Where FECHA_GENERACION >= FECHA_VIGENCIA and (FECHA_GENERACION <= FECHA_VIGENCIA_HASTA OR isnull(FECHA_VIGENCIA_HASTA));
+
+DROP Table plan_cod_afi_temp;
+
+
+Left Join($(vL.QVD))
+LOAD
+	AFI_ID,
+	FECHA_GENERACION,
+	PLAN_CODIGO,
+	AGENCIA_SOCIO
+Resident plan_cod_afi;
+
+DROP Table plan_cod_afi;
+
+
+NoConcatenate
+localidad_afi:
+LOAD Distinct  
+     AFI_ID
+Resident $(vL.QVD);
+
+NoConcatenate
+domicilio:
+LOAD  
+     LOC_LOC_ID			AS LOC_ID, 
+     AFI_AFI_ID			as AFI_ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DOMICILIOS_AFILIADO.qvd]
+(qvd);
+
+NoConcatenate
+domicilio_agrupado:
+LOAD
+	max(LOC_ID)		as LOC_ID,
+	AFI_ID
+Resident domicilio
+Group By AFI_ID;
+
+DROP Table domicilio;
+
+Inner Join(domicilio_agrupado)
+LOAD
+	LOCALIDAD,  
+     LOC_ID
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_LOCALIDADES.qvd]
+(qvd);
+	
+Inner Join (localidad_afi)
+LOAD
+	LOCALIDAD,
+	AFI_ID
+Resident domicilio_agrupado;
+
+DROP Table domicilio_agrupado;
+
+Left JOIN ($(vL.QVD))
+LOAD	
+	AFI_ID,
+	LOCALIDAD			AS LOCALIDAD_AFI
+Resident localidad_afi;
+
+
+DROP Table localidad_afi;
+
+
+
+// Seteo Variables.
+
+LET v_QRegistros = NoOfRows('$(vL.QVD)');
+LET v_QCampos = NoOfFields('$(vL.QVD)');
+
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);  
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;
+///$tab Prestaciones viejo
+EXIT Script;
+//
+//Prestaciones:
+//select  CA.PCA_ID PCA_ID, 
+//        CA.AFI_AFI_ID AFI_ID, 
+//        sa_afi84pck.recuperar_valores_nulo(afi_id,CA.FECHA_GENERACION ,'plan_codigo') PLAN_CODIGO, 
+//        sa_afi84pck.recuperar_valores_nulo(afi_id,CA.FECHA_GENERACION ,'del_os_codigo') AGENCIA_SOCIO, 
+//        C_LOC_AFILIADO(AFI.AFI_ID) LOCALIDAD_AFI, 
+//        'REI' TIPO, 
+//        '1' REI,
+//        CA.REI_REI_ID ID, 
+//        CA.CANTIDAD CANTIDAD, 
+//        CA.NOM_PRESTACION_PDH COD_PRESTACION, 
+//        CA.DESCRIPCION NOM_PRESTACION, 
+//        CA.CONTEXTO CONTEXTO, 
+//        CA.DEL_OS_CODIGO AGENCIA, 
+//        DELE.ATRIBUTO_USUARIO_5 AGEDEP, 
+//        DELE.ATRIBUTO_USUARIO_1 AGETIPO, 
+//        CA.FECHA_GENERACION FECHA_GENERACION, 
+//        CA.FECHA_REALIZACION FECHA_REALIZACION, 
+//        CA.DIAG_CODIGO CODIGO_DIAG, 
+//        DIA.DESCRIPCION NOMBRE_DIAG, 
+//        CA.VDA_DRV_ESTADO_AUDITORIA ESTADO, 
+//        CA.GRUPO_AUTORIZPREV COD_GRUPO, 
+//        FA.DESCRIPCION NOMBRE_GRUPO, 
+//        REI.USER_INSERT USUARIO, 
+//        REI.EFE_CODIGO_REALIZADOR CODIGO_EFECTOR, 
+//        EFE.NOMBRE NOMBRE_EFECTOR 
+//from SA_PRESTACIONES_CA ca, 
+//     sa_grupos_prestaciones fa, 
+//     sa_reintegros rei, 
+//     sa_efectores efe, 
+//     sa_delegaciones_os dele, 
+//     sa_afiliados afi, 
+//     sa_diagnosticos dia 
+//WHERE CA.GRUPO_LIQPRES    = FA.GRUPO(+) 
+//and   REI.REI_ID          = CA.REI_REI_ID
+//and   EFE.CODIGO          = REI.EFE_CODIGO_REALIZADOR 
+//and   DELE.CODIGO         = CA.DEL_OS_CODIGO
+//and   AFI.AFI_ID          = CA.AFI_AFI_ID  
+//and   CA.DIAG_CODIGO      = DIA.CODIGO(+) 
+//and   CA.REI_REI_ID       is not null 
+//and   CA.FECHA_GENERACION >= to_date('01/01/2013 00:00:00','dd/mm/yyyy HH24:MI:SS')
+// 
+//Union all 
+							// 
+							//select  CA.PCA_ID PCA_ID, 
+							//        CA.AFI_AFI_ID AFI_ID, 
+							//        sa_afi84pck.recuperar_valores_nulo(afi_id,C.FECHA ,'plan_codigo') PLAN_CODIGO, 
+							//        sa_afi84pck.recuperar_valores_nulo(afi_id,C.FECHA ,'del_os_codigo') AGENCIA_SOCIO, 
+							//        C_LOC_AFILIADO (AFI.AFI_ID) LOCALIDAD_AFI, 
+							//        decode(ca.contexto,'A','APR-A','APR-I') TIPO, 
+							//        '1' APRA, 															//DONDE?
+							//        CA.APR_APR_ID ID, 
+							//        CA.CANTIDAD CANTIDAD, 
+							//        CA.NOM_PRESTACION_PDH COD_PRESTACION, 
+							//        CA.DESCRIPCION NOM_PRESTACION, 
+							//        CA.CONTEXTO CONTEXTO, 
+							//        CA.DEL_OS_CODIGO AGENCIA, 
+							//        DELE.ATRIBUTO_USUARIO_5 AGEDEP, 
+							//        DELE.ATRIBUTO_USUARIO_1 AGETIPO, 
+							//        C.FECHA FECHA_GENERACION, 
+							//        CA.FECHA_REALIZACION FECHA_REALIZACION, 
+							//        CA.DIAG_CODIGO CODIGO_DIAG, 
+							//        DIA.DESCRIPCION NOMBRE_DIAG, 
+							//        CA.VDA_DRV_ESTADO_AUDITORIA ESTADO, 
+							//        CA.GRUPO_AUTORIZPREV GRUPO, 
+							//        FA.DESCRIPCION NOMBRE_GRUPO, 
+							//        C.USERNAME USUARIO, 
+							//        AUT.PRES_EFE_CODIGO CODIGO_EFECTOR, 
+							//        EFE.NOMBRE NOMBRE_EFECTOR 
+							//from sa_prestaciones_ca ca, 
+							//     sa_grupos_prestaciones fa, 
+							//     sa_autorizaciones_previas aut, 
+							//     sa_efectores efe, 
+							//     sa_afiliados afi, 
+							//     sa_delegaciones_os dele, 
+							//     sa_diagnosticos dia, 
+							//     c_logs c 
+							//WHERE CA.GRUPO_AUTORIZPREV = FA.GRUPO 
+							//and   AUT.APR_ID           = CA.APR_APR_ID 
+							//and   EFE.CODIGO(+)        = CA.EFE_CODIGO_REALIZADOR 
+							//and   AFI.AFI_ID           = CA.AFI_AFI_ID 
+							//and   DELE.CODIGO          = CA.DEL_OS_CODIGO 
+							//and   DIA.CODIGO           = CA.DIAG_CODIGO 
+							//and   AUT.APR_ID           = C.APR_APR_ID
+							//and   ca.contexto          in ('A','I') 
+							//and   AUT.VDA_DRV_ESTADO   = 'CA-----E'
+							//AND   C.USERNAME           IS NOT NULL 
+							//AND   C.USERNAME           <> 'CAWS'  
+							//and   C.FECHA              >= to_date('01/01/2013 00:00:00','dd/mm/yyyy HH24:MI:SS')
+							// 
+//UNION all 
+//
+//select 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',CA.PCA_ID,0) PCA_ID, 
+//    EM.AFI_AFI_ID AFI_ID, 
+//    sa_afi84pck.recuperar_valores_nulo(afi_id,C.FECHA ,'plan_codigo') PLAN_CODIGO, 
+//    sa_afi84pck.recuperar_valores_nulo(afi_id,C.FECHA ,'del_os_codigo') AGENCIA_SOCIO, 
+//    C_LOC_AFILIADO (AFI.AFI_ID) LOCALIDAD_AFI, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F','EMI','EMS') TIPO, 
+//    '1' EMI, 
+//    EM.EM_ID ID, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',CA.CANTIDAD,1) CANTIDAD, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',CA.NOM_PRESTACION_PDH,EM.NOM_PRESTACION) COD_PRESTACION, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',CA.DESCRIPCION,EM.DESCRIPCION) NOM_PRESTACION, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',CA.CONTEXTO,'A') CONTEXTO, 
+//    EM.DEL_OS_CODIGO AGENCIA, 
+//    DELE.ATRIBUTO_USUARIO_5 AGEDEP, 
+//    DELE.ATRIBUTO_USUARIO_1 AGETIPO, 
+//    C.FECHA FECHA_GENERACION, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',CA.FECHA_REALIZACION,EM.FECHA_INICIO) FECHA_REALIZACION, 
+//    EM.DIAG_CODIGO CODIGO_DIAG, 
+//    DIA.DESCRIPCION NOMBRE_DIAG, 
+//    EM.VDA_DRV ESTADO, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',CA.GRUPO_AUTORIZPREV,'SIN GRUPO') GRUPO, 
+//    decode(TIPO.DE_SEGUIMIENTO,'F',FA.DESCRIPCION,'SIN NOMBRE GRUPO') NOMBRE_GRUPO, 
+//    C.USERNAME USUARIO, 
+//    EM.EFE_CODIGO_SOLIC COD_EFECTOR, 
+//    EFE.NOMBRE NOMBRE_EFECTOR 
+//from sa_eventos_medicos em, ok
+//     sa_prestaciones_ca ca, ok
+//     sa_tipos_em tipo,  ok
+//     sa_grupos_prestaciones fa, ok 
+//     sa_delegaciones_os dele, OK
+//     sa_diagnosticos dia, ok
+//     sa_efectores efe, OK
+//     sa_afiliados afi, ok
+//     c_logs c ok
+//where EM.APR_APR_ID       = CA.APR_APR_ID(+) 
+//and   TIPO.CODIGO         = EM.TEM_CODIGO 
+//and   FA.GRUPO(+)         = CA.GRUPO_AUTORIZPREV 
+//and   DELE.CODIGO         = EM.DEL_OS_CODIGO 
+//and   DIA.CODIGO          = EM.DIAG_CODIGO 
+//and   EFE.CODIGO(+)       = EM.EFE_CODIGO_SOLIC 
+//and   AFI.AFI_ID          = EM.AFI_AFI_ID 
+//and   C.EM_EM_ID          = EM.EM_ID 
+//AND   TIPO.DE_SEGUIMIENTO in ('F','V') 
+//AND   c.USERNAME          IS NOT NULL 
+//AND   c.USERNAME          <> 'CAWS' 
+//AND   C.FECHA             >= to_date('01/01/2013 00:00:00','dd/mm/yyyy HH24:MI:SS');
+
+
+
+
+
+//from SA_PRESTACIONES_CA ca, ok 				C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     sa_grupos_prestaciones fa, ok  			C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     sa_reintegros rei, ok 					C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     sa_efectores efe, ok 					C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     sa_delegaciones_os dele, ok 				C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     sa_afiliados afi,  VER  					C:\Qlikview_bi\Control de Gestion\Bases en QVD\Extraer  ES UN QVD
+//     sa_diagnosticos dia  ok					C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     sa_autorizaciones_previas aut, ok		C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     c_logs c  VER							C:\Qlikview_bi\Control de Gestion\Bases en QVD\Extraer  ES UN QVD
+//from sa_eventos_medicos em, ok				C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer
+//     sa_tipos_em tipo, ok						C:\Qlikview_bi\Control de Gestion\ETL\Scripts Extraer

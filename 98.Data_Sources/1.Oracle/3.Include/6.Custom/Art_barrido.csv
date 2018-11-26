@@ -1,0 +1,9 @@
+Tablas,Base,Etiqueta
+sa_efectores,SALUD,Efectores
+sa_motivos_em,SALUD,MotivosSiniestros
+sa_afiliados,SALUD,Afiliados
+sa_grupos_prestaciones,SALUD,GruposPrestaciones
+sa_tipos_em,SALUD,TiposSiniestros
+sa_diagnosticos,SALUD,Diagnosticos
+sa_delegaciones_os,SALUD,Agencias
+C_INC_0810_REGISTRO,SALUD,CInc0810Registro

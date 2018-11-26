@@ -1,0 +1,97 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_02_ALTASBAJASMENSUALES';
+
+$(vL.QVD):
+NoConcatenate
+LOAD 
+//	 ID_AfiliadoMes, 
+//     Fecha, 
+//     ID_Casa, 
+//     OrganizadorCompleto, 
+//     ID_Agencia, 
+//     ID_TipoAgencia, 
+//     Referido, 
+//     ID_Empresa, 
+//     NroAfiliado, 
+     count(ID_Afiliado)					AS Cantidad_Movimientos, 
+     TipoMovimiento, 
+//     ID_TipoMovimiento, 
+//     ID_SolicitudAfiliado, 
+//     Afiliado, 
+//     ID_Tipo, 
+//     ID_Segmento, 
+//     SegmentoPresupuesto, 
+//     FechaAlta, 
+//     RangoAntiguedadTransaccion, 
+//     FechaNacimiento, 
+//     Edad, 
+//     Sexo, 
+//     ID_Plan, 
+//     Domicilio, 
+//     CodigoPostal, 
+//     CodigoPostalAmpliado, 
+//     Localidad, 
+//     Provincia, 
+     Periodo,
+     left(Periodo,4)					AS Año,
+     right(Periodo,2)					AS Mes 
+//     ID_Promotor, 
+//     Canal, 
+//     MotivoBaja, 
+//     ID_Organizador, 
+//     ID_Zona, 
+//     ID_PlanAnterior, 
+//     CanalOriginal
+FROM [$(vG.TransformPath)\STG_AFILIADOS_01_MOVIMIENTOSALTABAJA.qvd] (qvd)
+GROUP BY Periodo, TipoMovimiento;
+
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

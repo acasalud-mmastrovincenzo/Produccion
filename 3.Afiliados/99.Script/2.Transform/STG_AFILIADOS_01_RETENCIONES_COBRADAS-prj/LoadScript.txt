@@ -1,0 +1,102 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPO RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_01_RETENCIONES_COBRADAS';
+
+NoConcatenate
+retenciones_cobradas_por_perido_temp:
+LOAD
+	ID_TRANSACCION,
+	CODIGO,
+	AFI_ID,
+	ENT_RAZON_SOCIAL,
+	AA_CODIGO											as SEGMENTO,
+	OPERADOR,
+	Date(FECHA_COBRO, 'DD/MM/YYYY') 					as FECHA_GESTION
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SALDOS_COBRADOS_ENC.qvd](qvd)
+WHERE	
+	TIPO_DEUDA = 'RT';
+	
+Inner Join(retenciones_cobradas_por_perido_temp)
+LOAD
+	ID_TRANSACCION,
+	DAT_NUMERO,
+	DET_CUOTA,
+	TCP_CODIGO &' '& DAT_CPR_LETRA &' '& repeat('0', 4-len(DAT_CPR_SUC_NUMERO)) &' '& repeat('0', 4-len(DAT_CPR_NUMERO))			as COMPROBANTE,
+	DAT_CPR_FECHA_EMISION																											as FECHA_EMISION,
+	DET_FECHA_VENCIMIENTO																											as FECHA_VENCIMIENTO,
+	DET_SALDO_ACTUAL																												as SALDO,
+	IMPORTE_INTERES
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SALDOS_COBRADOS_DETALLE.qvd] (qvd);
+
+Inner Join(retenciones_cobradas_por_perido_temp)
+LOAD
+	DAT_NUMERO,
+	DET_CUOTA,
+	IF(DET_SALDO_ACTUAL = 0, Date(Floor(F_MODI), 'MM/DD/YYYY'), null())		as FECHA_PAGO,
+	DET_SALDO_ACTUAL														as SALDO_ACTUAL
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_DETALLES.qvd](qvd);
+
+	
+NoConcatenate
+$(vL.QVD):
+LOAD
+	CODIGO,
+	AFI_ID,
+	ENT_RAZON_SOCIAL,
+	SEGMENTO,
+	OPERADOR,
+	FECHA_GESTION,
+	COMPROBANTE,
+	FECHA_EMISION,
+	FECHA_VENCIMIENTO,
+	SALDO,
+	IMPORTE_INTERES,
+	SALDO_ACTUAL,
+	IF(SALDO_ACTUAL = 0, SALDO + IMPORTE_INTERES, 0)		as IMPORTE_COBRADO
+Resident retenciones_cobradas_por_perido_temp;
+
+DROP Table retenciones_cobradas_por_perido_temp;
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+
+DROP Table TIEMPO_RECARGA;

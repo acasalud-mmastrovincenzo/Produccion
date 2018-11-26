@@ -1,0 +1,127 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+
+LET vL.QVD = 'STG_AFILIADOS_01_ALERTAS_CA';
+
+
+// Levanto los datos.
+$(vL.QVD):
+LOAD 
+	 ACA_ID									AS ID_Alerta, // PK. 
+     PCA_PCA_ID								AS %ID_Prestacion, // FK.
+     CCA_CCA_ID								AS ID_Concepto, // FK. 
+     CAUD_CODIGO							AS %ID_CtrlAuditoria, // FK.  
+     TEXTO									AS TextoAlerta, 
+     NIVEL_AUDITORIA						AS NivelAuditoria, 
+     Date(FECHA_GENERACION,'DD/MM/YYYY')	AS FechaGeneracion, 
+     Date(FECHA_LECTURA,'DD/MM/YYYY')		AS FechaLectura, 
+     If(IsNull(FECHA_LECTURA), 'Pendiente', 'Leído')		AS EstadoLecura,
+     USR_USERNAME_AUDITOR_LEE				AS Nom_UsuarioAuditorLee, 
+     DERIVADO								AS Flag_Derivado, 
+     FECHA_RESOLUCION						AS FechaResolucion, 
+     If(IsNull(FECHA_RESOLUCION), 'Pendiente', 'Resuelto')	AS EstadoResolucion,
+     USR_USERNAME_AUDITOR_RESUELVE			AS Nom_UsuarioAuditorResuelve, 
+     IMPORTE_H_CONVENIO						AS ImporteHonorarioConvenio, 
+     IMPORTE_G_CONVENIO						AS ImporteGastoConvenio, 
+     IMPORTE_H_PLAN							AS ImporteHonorarioPlan, 
+     IMPORTE_G_PLAN							AS ImporteGastoPlan, 
+     IMPORTE_H_REINTEGRO					AS ImporteHonorarioReintegro, 
+     IMPORTE_G_REINTEGRO					AS ImporteGastoReintegro, 
+     TIPO_CARGO_AL_SOCIO					AS TipoCargoAlSocio, 
+     IMPORTE_CARGO_AL_SOCIO					AS ImporteCargoAlSocio, 
+     VDA_DRV_ESTADO_AUDITORIA				AS ID_EstadoAuditoria, 
+     VDA_DRV_ESTADO_VAL_AFI					AS ID_EstadoValAfi, 
+     VDA_DRV_ESTADO_VAL_PRES				AS ID_EstadoValPres, 
+     VDA_DRV_FASE_CA						AS ID_Fase, 
+     CONSUMO_INVALIDO						AS Flag_ConsumoInvalido, 
+     IGNORA_OTROS_ALERTAS					AS Flag_IgnoraOtrasAlertas, 
+     NOTA_AUDITOR							AS NotaAuditor, 
+     OBSERVACIONES							AS Obs_Alerta
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_ALERTAS_CA.qvd] (qvd);
+
+ 
+
+// Busco el Nombre y la Dsc. de los Estados de Auditoria.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_EstadoAuditoria, 
+     NOMBRE  			AS Nom_EstadoAuditoria,
+     DESCRIPCION		AS Dsc_EstadoAuditoria  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Estados ValAfi.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_EstadoValAfi, 
+     NOMBRE  			AS Nom_EstadoValAfi,
+     DESCRIPCION		AS Dsc_EstadoValAfi    
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Estados ValPres.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_EstadoValPres, 
+     NOMBRE  			AS Nom_EstadoValPres,
+     DESCRIPCION		AS Dsc_EstadoValPres  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de las Fases.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_Fase, 
+     NOMBRE  			AS Nom_Fase,
+     DESCRIPCION		AS Dsc_Fase
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

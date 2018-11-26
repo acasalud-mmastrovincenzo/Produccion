@@ -1,0 +1,120 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab Localidades
+LET vL.QVD = 'STG_GENERAL_01_LOCALIDADES';
+
+
+// Fuente de Oracle.-
+$(vL.QVD):
+LOAD
+	 CODIGO_POSTAL					AS CodigoPostal, 
+     LOCALIDAD						AS Localidad, 
+     PCIA_CODIGO					AS ProvinciaID, 
+//     PREFIJO_DDN, 
+     LOC_ID							AS LocalidadID//, 
+//     LOC_VALIDA						AS LocalidadValida						
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_LOCALIDADES.qvd] (qvd);
+//Where LOC_VALIDA = 'S';
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Provincia
+LET vL.QVD = 'STG_GENERAL_01_PROVINCIAS';
+
+
+$(vL.QVD):
+LOAD 
+	 CODIGO				as ProvinciaID, 
+     NOMBRE				as Provincia 
+//     DESCRIPCION, 
+//     PAIS_CODIGO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PROVINCIAS.qvd] (qvd);
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Zonas
+LET vL.QVD = 'STG_GENERAL_01_ZONAS_GEOGRAFICAS';
+
+
+$(vL.QVD):
+LOAD
+	 CODIGO						AS ZonaID, 
+     NOMBRE						AS Zona, 
+     DESCRIPCION				AS ZonaDescripcion, 
+     OBSERVACIONES				AS ZonaObservaciones
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_ZONAS_GEOGRAFICAS.qvd] (qvd);
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Localidades Zonas
+LET vL.QVD = 'STG_GENERAL_01_LOCALIDADES_ZONAS_GEOGRAFICAS';
+
+
+$(vL.QVD):
+LOAD
+	 LOC_LOC_ID					AS LocalidadID, 
+     ZG_CODIGO					AS ZonaID
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_LOCALIDADES_ZONAS_GEOGRAFIC.qvd] (qvd);
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab Georreferencia
+LET vL.QVD = 'STG_GENERAL_01_GEO_LOCALIDADES';
+
+
+$(vL.QVD):
+LOAD
+	 LOCALIDAD					AS Localidad, 
+     PROVINCIA					AS Provincia, 
+     PCIA_CODIGO				AS ProvinciaID,	 
+     LAT						AS LocalidadLatitud, 
+     LON						AS LocalidadLongitud
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_GEO_LOCALIDADES_WEB.qvd] (qvd);
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd); 
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'STG_GENERAL_01_DIMENSIONES'						AS Proceso,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

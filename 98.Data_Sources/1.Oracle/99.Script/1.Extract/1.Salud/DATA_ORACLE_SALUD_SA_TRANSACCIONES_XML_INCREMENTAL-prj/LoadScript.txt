@@ -1,0 +1,149 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'SA_TRANSACCIONES_XML';
+LET vL.Base = 'SALUD';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Incremental';
+
+
+let vL.Minimo 	= Timestamp(Timestamp#('00:00am','hh:mmtt'),'hh:mmTT');
+let vL.Maximo 	= Timestamp(Timestamp#('08:00pm','hh:mmtt'),'hh:mmTT');
+let vL.Now  	= Timestamp(now(),'hh:mmTT');
+
+IF  '$(vL.Now)' >= '$(vL.Minimo)' and '$(vL.Now)' < '$(vL.Maximo)' THEN
+	Let vL.ThisExecTime = Date(Date(today()-1) + time('18:30', 'hh:mm'), 'DD/MM/YYYY hh:mm:ss');
+ELSE
+	Let vL.ThisExecTime = Date(Date(today()) 	+ time('18:30', 'hh:mm'), 'DD/MM/YYYY hh:mm:ss');
+ENDIF;
+
+
+
+$(vL.QVD):
+SQL
+select 
+    tran.FECHA_INSERT,
+    tran.FECHA_UPDATE,
+    tran.TRANXML_ID,
+    tran.TIME_SOLICITUD,
+    tran.TIME_RESPUESTA,
+    tran.TMSG_CODIGO,
+    tran.TMSG_PROTMSG_CODIGO,
+    tran.ORIGEN,
+    tran.ATRIBUTO_USUARIO_1,
+    tran.ATRIBUTO_USUARIO_2,
+    tran.ATRIBUTO_USUARIO_3,
+    tran.REFERENCIA_EXTERNA_1,
+    tran.ATRIBUTO_USUARIO_4,
+    tran.ATRIBUTO_USUARIO_5,
+    tran.ATRIBUTO_USUARIO_6,
+    tran.ATRIBUTO_USUARIO_7,
+    tran.ATRIBUTO_USUARIO_8,
+    tran.ATRIBUTO_USUARIO_9,
+    tran.ATRIBUTO_USUARIO_10,
+    tran.REFERENCIA_EXTERNA_2,
+    tran.REFERENCIA_EXTERNA_3,
+    tran.ATRIBUTO_USUARIO_11,
+    tran.ATRIBUTO_USUARIO_12,
+    tran.ATRIBUTO_USUARIO_13,
+    tran.ATRIBUTO_USUARIO_14,
+    tran.ATRIBUTO_USUARIO_15,
+    tran.REFERENCIA_EXTERNA_4,
+    tran.REFERENCIA_EXTERNA_5,
+    tran.USER_INSERT,
+    tran.USER_UPDATE,
+    trunc(tran.FECHA_INSERT) as FECHA,
+       TO_CHAR (tran.time_solicitud, 'HH24:MI:SSxFF') as HORA,
+       EXTRACTVALUE (xmltype (tran.msg_solicitud), '//SOLICITUD/OPER/FECHA') fecha_operacion,
+       DECODE (
+               NVL (LENGTH (tran.msg_respuesta), 0),
+               0,
+               NULL,
+               EXTRACTVALUE (xmltype (tran.msg_respuesta), '//RESPUESTA/STATUS')
+               ) estado,       
+       EXTRACTVALUE (xmltype (msg_solicitud), '//SOLICITUD/CONTEXTO/TIPO') contexto,
+       NVL( 
+               SA_AFI84IRPCK.RECUPERAR_VALORES_CHAR_NULO 
+                   (
+                  TO_NUMBER (TRAN.ATRIBUTO_USUARIO_1),
+                  time_solicitud,
+                  'CODIGO'
+                ),
+            to_char(substr(msg_solicitud , INSTR(msg_solicitud, '<PID><ID>') + 9, (INSTR(msg_solicitud, '</ID><TIPOID>') - INSTR(msg_solicitud, '<PID><ID>') - 9 )))    
+          )   AS codigo_afiliado,
+       to_char(substr(msg_respuesta , INSTR(msg_respuesta, '<RSPCODP>') + 9 , (INSTR(msg_respuesta, '</RSPCODP>') - INSTR(msg_respuesta, '<RSPCODP>') - 9 ))) codigo_error,
+       to_char(substr(msg_respuesta , INSTR(msg_respuesta, '<RSPMSGP>') + 9 , (INSTR(msg_respuesta, '</RSPMSGP>') - INSTR(msg_respuesta, '<RSPMSGP>') - 9 ))) tipo_error,
+       to_char(substr(msg_respuesta , INSTR(msg_respuesta, '<RSPMSGPADIC>') + 13 , (INSTR(msg_respuesta, '</RSPMSGPADIC>') - INSTR(msg_respuesta, '<RSPMSGPADIC>') - 13 ))) texto_error,
+       EXTRACTVALUE (xmltype (tran.msg_solicitud), '//SOLICITUD/PID/ID') codigo_prestacion
+from $(vL.Base).$(vL.Tabla) tran
+where nvl(nvl(GREATEST(FECHA_UPDATE,FECHA_INSERT),FECHA_INSERT), FECHA_UPDATE) >= to_date('$(vL.LastExecTime)', 'DD/MM/YYYY HH24:MI:SS')-1;
+
+
+Concatenate $(vL.QVD):
+LOAD
+	*
+From $(vG.ExtractPath)\$(vL.QVD).qvd (qvd)
+WHERE NOT EXISTS(TRANXML_ID);
+
+Inner Join ($(vL.QVD))
+SQL 
+SELECT 
+TRANXML_ID 
+FROM $(vL.Base).$(vL.Tabla);
+
+
+If ScriptErrorCount = 0 then
+	
+	Let vL.LastExecTime = vL.ThisExecTime;
+	
+	SET vL.QRegistros = NoOfRows('$(vL.QVD)');
+	SET vL.QCampos = NoOfFields('$(vL.QVD)');
+	
+	STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+	
+		//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+	
+End If
+
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

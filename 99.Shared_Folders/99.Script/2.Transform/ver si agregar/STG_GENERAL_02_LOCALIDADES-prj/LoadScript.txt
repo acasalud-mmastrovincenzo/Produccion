@@ -1,0 +1,145 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab STG_02_LOCALIDADES
+// OBJETIVO: GENERAR UN UNICO QVD CON LOCALIDADES.
+
+
+LET vL.QVD = 'STG_GENERAL_02_LOCALIDADES';
+
+
+// Levanto los datos de LOCALIDADES.
+$(vL.QVD):  
+LOAD
+	 CodigoPostal, 
+     Localidad, 
+     ProvinciaID, 
+     LocalidadID,
+     Localidad&'|'&ProvinciaID			AS %K_Localidad_Provincia
+FROM [$(vG.TransformPath)\STG_GENERAL_01_LOCALIDADES.qvd] (qvd);
+
+
+// Uno los datos de PROVINCIAS.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 ProvinciaID, 
+     Provincia
+FROM [$(vG.TransformPath)\STG_GENERAL_01_PROVINCIAS.qvd] (qvd);
+
+
+// Uno los datos de GEORREFERENCIACIÓN.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 Localidad&'|'&ProvinciaID			AS %K_Localidad_Provincia,
+//	 Localidad, 
+//     Provincia, 
+//     ProvinciaID, 
+     LocalidadLatitud, 
+     LocalidadLongitud
+FROM [$(vG.TransformPath)\STG_GENERAL_01_GEO_LOCALIDADES.qvd] (qvd);
+
+
+DROP Field %K_Localidad_Provincia;
+
+
+// Uno los datos de ZONA DE CONTRATACION.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 LocalidadID, 
+     ZonaID								AS ZonaContratacionesID
+FROM [$(vG.TransformPath)\STG_GENERAL_01_LOCALIDADES_ZONAS_GEOGRAFICAS.qvd] (qvd)
+Where wildmatch(ZonaID,'ZONA_*') > 0;
+
+
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 ZonaID								AS ZonaContratacionesID, 
+//     Zona, 
+     ZonaDescripcion					AS ZonaContratacionesReferente, 
+     ZonaObservaciones					AS ZonaContrataciones
+FROM
+[$(vG.TransformPath)\STG_GENERAL_01_ZONAS_GEOGRAFICAS.qvd]
+(qvd);
+
+
+// Uno los datos de ZONA DE COMERCIAL.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 LocalidadID, 
+     ZonaID								AS RegionComercialID
+FROM [$(vG.TransformPath)\STG_GENERAL_01_LOCALIDADES_ZONAS_GEOGRAFICAS.qvd] (qvd)
+Where wildmatch(ZonaID,'OR_*') > 0;
+
+
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 ZonaID								AS RegionComercialID, 
+     Zona								AS RegionComercial, 
+//     ZonaDescripcion, 
+     ZonaObservaciones					AS RegionComercialOR
+FROM [$(vG.TransformPath)\STG_GENERAL_01_ZONAS_GEOGRAFICAS.qvd] (qvd);
+
+
+// Uno los datos de ZONA DE ATENCION.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 LocalidadID, 
+     ZonaID								AS ZonaAtencionID
+FROM [$(vG.TransformPath)\STG_GENERAL_01_LOCALIDADES_ZONAS_GEOGRAFICAS.qvd] (qvd)
+Where wildmatch(ZonaID,'AT*') > 0;
+
+
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 ZonaID								AS ZonaAtencionID, 
+     Zona								AS ZonaAtencion//, 
+//     ZonaDescripcion, 
+//     ZonaObservaciones
+FROM [$(vG.TransformPath)\STG_GENERAL_01_ZONAS_GEOGRAFICAS.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);   
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

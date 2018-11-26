@@ -1,0 +1,107 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab STG_02_EMPRESAS
+// OBJETIVO: GENERAR UN UNICO QVD CON EMPRESAS.
+
+
+LET vL.QVD = 'STG_GENERAL_02_EMPRESAS';
+
+
+// Levanto los datos de EMPRESAS.
+$(vL.QVD):  
+LOAD 
+	 EmpresaID, 
+	 Empresa, 
+     EmpresaCUIT, 
+     EmpresaEstado, 
+     GremOriginalID, 
+     EmpresaTipo
+FROM
+[$(vG.TransformPath)\STG_GENERAL_01_SA_EMPLEADORES.qvd]
+(qvd);
+
+
+
+
+// Uno los datos de GREM ORIGINALES Y GREM PARA RENTABILIDAD.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 GremID,
+     GremCuadranteID, 
+     GremOriginalID, 
+     GremOriginal, 
+     GremCuadrante, 
+     Grem
+FROM
+[$(vG.TransformPath)\STG_GENERAL_01_SA_GRUPOS_EMPRESA.qvd]
+(qvd);
+
+
+// Uno los datos de GREM MENOR PARA RENTABILIDAD.
+LEFT JOIN ($(vL.QVD))
+LOAD 
+	 GremDetalleID, 
+     EmpresaID, 
+     GremDetalle
+FROM
+[$(vG.TransformPath)\STG_GENERAL_01_SA_DATOS_ADICIONALES_EMPLEADORES.qvd]
+(qvd);
+
+
+// Uno los datos de Agencias.
+LEFT JOIN ($(vL.QVD))
+LOAD
+	 EmpresaID, 
+     EmpresaAgenciaID
+FROM
+[$(vG.TransformPath)\STG_GENERAL_01_AGENCIAS_EMPLEADORES.qvd]
+(qvd);
+
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);   
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'STG_NEGOCIO_02_EMPRESAS'					AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

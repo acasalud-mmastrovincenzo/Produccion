@@ -1,0 +1,485 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab PRESTAC CON AUTORIZ PREV
+// DESARROLLADO POR: LSEMINO - Fecha de Creación: 13/07/2017.
+// OBJETIVO: GENERAR UN UNICO QVD CON LOS DATOS COMPLETOS DE LAS PRESTACIONES CON AUTORIZACION PREVIA.
+
+LET vL.QVD = 'STG_AFILIADOS_01_PRESTACIONES_CON_AUTORIZACION_PREVIA';
+
+
+// Levanto los datos de las Prestaciones.
+$(vL.QVD):
+LOAD 
+	 PCA_ID								AS %ID_Prestacion, 
+	 PCA_ID								AS ID_Prestacion, 
+	 DEL_OS_CODIGO & '|' & DEL_OS_OSOC_CODIGO	AS %K_ID_Agencia_ObraSocial,  // Relación con SA_Delegaciones_OS.	 
+     AFI_AFI_ID							AS ID_Afiliado, 
+     PCA_TYPE							AS TipoPrestacionCA, // PCAC = Prestac. Consumidas - PCAP = Autoriz. Previas.
+     CABCP_CABCP_ID						AS ID_Cabecera, 
+     REI_REI_ID							AS ID_Reintegro, 
+     APR_APR_ID							AS %ID_AutorizacionPrevia, // Relación con Transacciones_XML.
+     PCA_PCA_ID							AS ID_PcaPca, 
+     OCA_OCA_ID							AS ID_OcaOca, 
+     CANTIDAD							AS Cantidad, 
+     NOM_PRESTACION_PAH					AS Nom_PrestacionPah, 
+//     NOM_PRESTACION_PDH					AS Nom_PrestacionPdh, 
+     If(Left(Trim(NOM_PRESTACION_PDH),2) = 'SC', NOM_PRESTACION_PDH, 
+     	If(TIPO_PRESTACION = 'M', 'M' & NUM(NOM_PRESTACION_PDH), '0' & NUM(NOM_PRESTACION_PDH))) AS Nom_PrestacionPdh,
+     GRUPO_PRESTACIONES					AS GrupoPrestaciones, 
+     DETALLA_CONCEPTOS					AS DetallaConceptos, 
+     ES_MODULO							AS EsModulo, 
+     SISTEMA							AS Sistema, 
+     ESCENARIO_COBERTURA				AS EscenarioCobertura, 
+     ESCENARIO_TOPES					AS EscenarioTopes, 
+     ESCENARIO_CARENCIAS				AS EscenarioCarencias, 
+     ESCENARIO_VALORIZACION_PLAN		AS EscenarioValorizacionPlan, 
+     ESCENARIO_CARGOS_SOCIO				AS EscenarioCargosSocio, 
+     CONTEXTO							AS ID_ContextoPrestacion, 
+     If(CONTEXTO = 'A', 'Ambulatorio',
+	 	If(CONTEXTO = 'I', 'Internacion', 'Sin Especificar'))	AS Nom_ContextoPrestacion,
+     ORIGEN								AS OrigenPrestacion, 
+//     DEL_OS_OSOC_CODIGO					AS ID_DelOsOsoc, 
+     DEL_OS_CODIGO						AS ID_Agencia, 
+     Date(FECHA_GENERACION)				AS FechaGeneracion, 
+     EM_EM_ID_EV_MEDICO_ORIGINAL		AS ID_EvMedicoOriginal, 
+     EM_EM_ID_EV_MEDICO_GRABADO			AS ID_EvMedicoGrabado, 
+     EM_EM_ID_EV_MEDICO_SEGUIMIENTO		AS ID_EvMedicoSeguimiento, 
+     Date(FECHA_REALIZACION)			AS FechaRealizacion, 
+//     CONS_PRES_EFE_CODIGO_PRESENTA, 
+//     CONS_SECUENCIA_PRESENTA, 
+//     CONS_PRES_EFE_CODIGO_LUGAR, 
+	 If(CONS_PRES_EFE_CODIGO_LUGAR = '705998', ATRIBUTO_4, 0) AS EPFFemeba,
+//     CONS_SECUENCIA_LUGAR, 
+     EFE_CODIGO_REALIZADOR				AS ID_Realizador, 
+     EFE_CODIGO_EFECTOR_REINTEGRO		AS ID_EfectorReintegro, 
+     EFE_CODIGO_PRESCRIPTOR				AS ID_Prescriptor, 
+     Date(FECHA_PRESCRIPCION)			AS FechaPrescripcion, 
+     DIAG_CODIGO						AS ID_Diagnostico, 
+     HONORARIOS_PRESENTADOS				AS HonorariosPresentados, 
+     GASTOS_PRESENTADOS					AS GastosPresentados, 
+     TVAL_CODIGO_H_CONVENIO_SYS			AS ID_TValHConvenioSys, 
+     VALOR_H_CONVENIO_SYS				AS ValorHConvenioSys, 
+     IMPORTE_H_CONVENIO_SYS				AS ImporteHConvenioSys, 
+     IMPORTE_H_CONVENIO_AUD				AS ImporteHConvenioAud, 
+     If(IMPORTE_H_CONVENIO_AUD > 0 OR Not IsNull(IMPORTE_H_CONVENIO_AUD), IMPORTE_H_CONVENIO_AUD, IMPORTE_H_CONVENIO_SYS)	 				AS ImporteHonorarioPres,
+     TVAL_CODIGO_G_CONVENIO_SYS			AS ID_TValGConvenioSys, 
+     VALOR_G_CONVENIO_SYS				AS ValorGConvenioSys, 
+     IMPORTE_G_CONVENIO_SYS				AS ImporteGConvenioSys, 
+     IMPORTE_G_CONVENIO_AUD				AS ImporteGConvenioAud,
+     If(IMPORTE_G_CONVENIO_AUD > 0 OR Not IsNull(IMPORTE_G_CONVENIO_AUD), IMPORTE_G_CONVENIO_AUD, IMPORTE_G_CONVENIO_SYS) 					AS ImporteGastoPres,	 
+     TVAL_CODIGO_H_PLAN_SYS				AS ID_TValHPlanSys, 
+     VALOR_H_PLAN_SYS					AS ValorHPlanSys, 
+     IMPORTE_H_PLAN_SYS					AS ImporteHPlanSys, 
+     IMPORTE_H_PLAN_AUD					AS ImporteHPlanAud, 
+     TVAL_CODIGO_G_PLAN_SYS				AS ID_TValGPlanSys, 
+     VALOR_G_PLAN_SYS					AS ValorGPlanSys, 
+     IMPORTE_G_PLAN_SYS					AS ImporteGPlanSys, 
+     IMPORTE_G_PLAN_AUD					AS ImporteGPlanAud, 
+     TIPO_CARGO_AL_SOCIO_SYS			AS TipoCargoSocioSys, 
+     TIPO_CARGO_AL_SOCIO_AUD			AS TipoCargoSocioAud, 
+     IMPORTE_CARGO_AL_SOCIO_SYS			AS ImporteCargoSocioSys, 
+     IMPORTE_CARGO_AL_SOCIO_AUD			AS ImporteCargoSocioAud, 
+     If(IMPORTE_CARGO_AL_SOCIO_AUD > 0 OR Not IsNull(IMPORTE_CARGO_AL_SOCIO_AUD), IMPORTE_CARGO_AL_SOCIO_AUD, IMPORTE_CARGO_AL_SOCIO_SYS) 	AS ImporteCargoSocio,
+     IMPORTE_H_REINTEGRO_SYS			AS ImporteHReintegroSys, 
+     IMPORTE_H_REINTEGRO_AUD			AS ImporteHReintegroAud, 
+     If(IMPORTE_H_REINTEGRO_AUD > 0 OR Not IsNull(IMPORTE_H_REINTEGRO_AUD), IMPORTE_H_REINTEGRO_AUD, IMPORTE_H_REINTEGRO_SYS) 				AS ImporteHonorarioReintegro,
+     IMPORTE_G_REINTEGRO_SYS			AS ImporteGReintegroSys, 
+     IMPORTE_G_REINTEGRO_AUD			AS ImporteGReintegroAud, 
+     If(IMPORTE_G_REINTEGRO_AUD > 0 OR Not IsNull(IMPORTE_G_REINTEGRO_AUD), IMPORTE_G_REINTEGRO_AUD, IMPORTE_G_REINTEGRO_SYS)				AS ImporteGastoReintegro,
+     VDA_DRV_ESTADO_AUDITORIA			AS ID_EstadoAuditoria, 
+     VDA_DRV_ESTADO_VAL_AFI				AS ID_EstadoValAfi, 
+     VDA_DRV_ESTADO_VAL_PRES			AS ID_EstadoValPres, 
+//     DBMC_DBMC_ID						AS ID_DbmcDbmc, 
+//     DBE_DBE_ID							AS ID_DbeDbe, 
+//     CAPC_CAPC_ID						AS ID_CapcCapc, 
+//     LVNOM_CODIGO_PLAN					AS ID_PlanLVNom, 
+//     GRPRES_RPRES_CODIGO_PRESCRIP, 
+//     GRPRES_CODIGO_PRESCRIP, 
+//     GRPRES_RPRES_CODIGO, 
+//     GRPRES_CODIGO, 
+     TCC_CODIGO							AS ID_TipoClausulaCob, 
+     PAGA_CONCEPTOS_SEPARADOS			AS PagaConceptosSeparados, 
+     PRESTACION_COMPLETA				AS PrestacionCompleta, 
+     CM_CIRUGIA_MULTIPLE				AS CM_CirugaMultiple, 
+     CM_PESO							AS CM_Peso, 
+     CM_COEFICIENTE_HONORARIOS			AS CM_CoeficienteHonorarios, 
+     CM_COEFICIENTE_GASTOS				AS CM_CoeficienteGastos, 
+     CM_APLICA_AFILIADO					AS CM_AplicaAfiliado, 
+     PROX_NIVEL_DE_AUDITORIA			AS ProxNivelAuditoria, 
+     USR_USERNAME						AS Nom_Usuario, 
+     FCION_CODIGO						AS ID_Funcion, 
+     USR_USERNAME_TOMADO_POR			AS Nom_UsuarioTomadopor, 
+     LIQUIDADO							AS Liquidado, 
+     CONSUMO_INVALIDO					AS ConsumoInvalido, 
+     ANULADO							AS Anulado, 
+     OBSERVACIONES						AS Observaciones, 
+     ATRIBUTO_1							AS Nro_Orden, 
+     ATRIBUTO_2							AS Atributo_2, 
+     ATRIBUTO_3							AS Atributo_3, 
+     ATRIBUTO_4							AS Atributo_4, 
+     ATRIBUTO_5							AS Atributo_5, 
+     ATRIBUTO_6							AS Atributo_6, 
+     ATRIBUTO_7							AS Atributo_7, 
+     ATRIBUTO_8							AS Nro_Autorizacion, 
+     ATRIBUTO_9							AS Atributo_9, 
+     ATRIBUTO_10						AS Atributo_10, 
+     ATRIBUTO_11						AS Atributo_11, 
+     ATRIBUTO_12						AS Atributo_12, 
+     ATRIBUTO_13						AS Atributo_13, 
+     ATRIBUTO_14						AS Atributo_14, 
+     ATRIBUTO_15						AS Atributo_15, 
+     GRUPO_AFILIACIONES					AS GrupoAfiliaciones, 
+     GRUPO_AUTORIZPREV					AS %ID_GrupoPrestacion, 
+     GRUPO_CONTAB						AS GrupoContab, 
+     GRUPO_CONVPRES						AS GrupoConvPres, 
+     GRUPO_CTROLAUD						AS GrupoControlAud, 
+     GRUPO_EFECTORES					AS GrupoEfectores, 
+     GRUPO_ESTADISTICA					AS GrupoEstadistica, 
+     GRUPO_IMPUESTOS					AS GrupoImpuestos, 
+     GRUPO_LIQAFILIADOS					AS GrupoLiqAfiliados, 
+     GRUPO_LIQPRES						AS GrupoLiqPres, 
+     GRUPO_NORMASAUD					AS GrupoNormasAud, 
+     GRUPO_PLANCOB						AS GrupoPlanCob, 
+     GRUPO_PRESTADORES					AS GrupoPrestadores, // %ID_GrupoPrestacion - Campo Relación con SA_GRUPOS_PRESTACIONES.
+     GRUPO_REDPRES						AS GrupoRedPres, 
+     TIPO_PRESTACION					AS TipoPrestacion, 
+     IF(TIPO_PRESTACION = 'M', (CONS_PRES_EFE_CODIGO_LUGAR & '-' & CONS_SECUENCIA_LUGAR), NULL()) 	AS ID_Farmacia,
+     DESCRIPCION						AS Dsc_Prestacion, 
+     CONVPRES_CONVENIO					AS ConvenioPrestacion, 
+     PLAN_CODIGO						AS ID_PlanCobertura, 
+     VALOR_BASE							AS ValorBase, 
+     TVAL_CODIGO_H_REFERENCIA			AS ID_TValHReferencia, 
+     VALOR_H_REFERENCIA					AS ValorHReferencia, 
+     IMPORTE_H_REFERENCIA				AS ImporteHReferencia, 
+     TVAL_CODIGO_G_REFERENCIA			AS ID_TValGReferencia, 
+     VALOR_G_REFERENCIA					AS ValorGReferencia, 
+     IMPORTE_G_REFERENCIA				AS ImporteGReferencia, 
+     IMPORTE_CARGO_SOCIO_PRESENTADO		AS ImporteCargoSocioPresentado, 
+     REC_REC_ID							AS ID_Receta, 
+     VDA_DRV_COBRO_CARGO_AFILIADO		AS ID_CobroCargoAfiliado, 
+     SC_SC_ID							AS ID_ScSc, 
+     IMPORTE_H_CATEGORIZ_SYS			AS ImporteHCategorizSys, 
+     IMPORTE_G_CATEGORIZ_SYS			AS ImporteGCategorizSys, 
+     IMPORTE_H_CATEGORIZ_AUD			AS ImporteHCategorizAud, 
+     IMPORTE_G_CATEGORIZ_AUD			AS ImporteGCategorizAud, 
+     IMPORTE_PRESENTADO					AS ImportePresentado, 
+     CANT_AUTORIZADA					AS Ctd_Autorizada, 
+     LPRELP_LPRELP_ID					AS ID_LprelpLprelp, 
+     AI_CODIGO_CARGO_AFILIADO			AS ID_AiCargoAfiliado, 
+     CANTIDAD_SOLICITADA				AS Ctd_Solicitada, 
+     REFACTURACION						AS Refacturacion, 
+     PRESTACION_PRINCIPAL				AS PrestacionPrincipal, 
+     FASE_4								AS Fase_4
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PRESTACIONES_CA.qvd] (qvd)
+WHERE ANULADO = 'F' AND PCA_TYPE = 'PCAP';
+     
+
+
+
+// Busco el Nombre y la Dsc. de los Estados de Auditoria.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_EstadoAuditoria, 
+     NOMBRE  			AS Nom_EstadoAuditoria,
+     DESCRIPCION		AS Dsc_EstadoAuditoria  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Estados ValAfi.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_EstadoValAfi, 
+     NOMBRE  			AS Nom_EstadoValAfi,
+     DESCRIPCION		AS Dsc_EstadoValAfi    
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Estados ValPres.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_EstadoValPres, 
+     NOMBRE  			AS Nom_EstadoValPres,
+     DESCRIPCION		AS Dsc_EstadoValPres  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Cobros Cargos Afiliados.
+LEFT JOIN ($(vL.QVD))
+LOAD  
+	 DRV				AS ID_CobroCargoAfiliado, 
+     NOMBRE  			AS Nom_CobroCargoAfiliado,
+     DESCRIPCION		AS Dsc_CobroCargoAfiliado
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab PRESTACIONES CONSUMIDAS
+// DESARROLLADO POR: LSEMINO - Fecha de Creación: 13/07/2017.
+// OBJETIVO: GENERAR UN UNICO QVD CON LOS DATOS COMPLETOS DE LAS PRESTACIONES CONSUMIDAS.
+
+LET vL.QVD_1 = 'STG_AFILIADOS_01_PRESTACIONES_CONSUMIDAS';
+
+
+// Levanto los datos de las Prestaciones.
+$(vL.QVD_1):
+LOAD 
+	 PCA_ID								AS %ID_Prestacion, 
+	 PCA_ID								AS ID_Prestacion, 
+	 DEL_OS_CODIGO & '|' & DEL_OS_OSOC_CODIGO	AS %K_ID_Agencia_ObraSocial,  // Relación con SA_Delegaciones_OS.	 
+     AFI_AFI_ID							AS ID_Afiliado, 
+     PCA_TYPE							AS TipoPrestacionCA, // PCAC = Prestac. Consumidas - PCAP = Autoriz. Previas.
+     CABCP_CABCP_ID						AS ID_Cabecera, 
+     REI_REI_ID							AS ID_Reintegro, 
+     APR_APR_ID							AS ID_AutorizacionPrevia, // Relación con Transacciones_XML.
+     PCA_PCA_ID							AS ID_PcaPca, 
+     OCA_OCA_ID							AS ID_OcaOca, 
+     CANTIDAD							AS Cantidad, 
+     NOM_PRESTACION_PAH					AS Nom_PrestacionPah, 
+//     NOM_PRESTACION_PDH					AS Nom_PrestacionPdh, 
+     If(Left(Trim(NOM_PRESTACION_PDH),2) = 'SC', NOM_PRESTACION_PDH, 
+     	If(TIPO_PRESTACION = 'M', 'M' & NUM(NOM_PRESTACION_PDH), '0' & NUM(NOM_PRESTACION_PDH))) AS Nom_PrestacionPdh,
+     GRUPO_PRESTACIONES					AS GrupoPrestaciones, 
+     DETALLA_CONCEPTOS					AS DetallaConceptos, 
+     ES_MODULO							AS EsModulo, 
+     SISTEMA							AS Sistema, 
+     ESCENARIO_COBERTURA				AS EscenarioCobertura, 
+     ESCENARIO_TOPES					AS EscenarioTopes, 
+     ESCENARIO_CARENCIAS				AS EscenarioCarencias, 
+     ESCENARIO_VALORIZACION_PLAN		AS EscenarioValorizacionPlan, 
+     ESCENARIO_CARGOS_SOCIO				AS EscenarioCargosSocio, 
+     CONTEXTO							AS ID_ContextoPrestacion, 
+     If(CONTEXTO = 'A', 'Ambulatorio',
+	 	If(CONTEXTO = 'I', 'Internacion', 'Sin Especificar'))	AS Nom_ContextoPrestacion,
+     ORIGEN								AS OrigenPrestacion, 
+//     DEL_OS_OSOC_CODIGO					AS ID_DelOsOsoc, 
+     DEL_OS_CODIGO						AS ID_Agencia, 
+     Date(FECHA_GENERACION)				AS FechaGeneracion, 
+     EM_EM_ID_EV_MEDICO_ORIGINAL		AS ID_EvMedicoOriginal, 
+     EM_EM_ID_EV_MEDICO_GRABADO			AS ID_EvMedicoGrabado, 
+     EM_EM_ID_EV_MEDICO_SEGUIMIENTO		AS ID_EvMedicoSeguimiento, 
+     Date(FECHA_REALIZACION)			AS FechaRealizacion, 
+//     CONS_PRES_EFE_CODIGO_PRESENTA, 
+//     CONS_SECUENCIA_PRESENTA, 
+//     CONS_PRES_EFE_CODIGO_LUGAR, 
+	 If(CONS_PRES_EFE_CODIGO_LUGAR = '705998', ATRIBUTO_4, 0) AS EPFFemeba,
+//     CONS_SECUENCIA_LUGAR, 
+     EFE_CODIGO_REALIZADOR				AS ID_Realizador, 
+     EFE_CODIGO_EFECTOR_REINTEGRO		AS ID_EfectorReintegro, 
+     EFE_CODIGO_PRESCRIPTOR				AS ID_Prescriptor, 
+     Date(FECHA_PRESCRIPCION)			AS FechaPrescripcion, 
+     DIAG_CODIGO						AS ID_Diagnostico, 
+     HONORARIOS_PRESENTADOS				AS HonorariosPresentados, 
+     GASTOS_PRESENTADOS					AS GastosPresentados, 
+     TVAL_CODIGO_H_CONVENIO_SYS			AS ID_TValHConvenioSys, 
+     VALOR_H_CONVENIO_SYS				AS ValorHConvenioSys, 
+     IMPORTE_H_CONVENIO_SYS				AS ImporteHConvenioSys, 
+     IMPORTE_H_CONVENIO_AUD				AS ImporteHConvenioAud, 
+     If(IMPORTE_H_CONVENIO_AUD > 0 OR Not IsNull(IMPORTE_H_CONVENIO_AUD), IMPORTE_H_CONVENIO_AUD, IMPORTE_H_CONVENIO_SYS)	 				AS ImporteHonorarioPres,
+     TVAL_CODIGO_G_CONVENIO_SYS			AS ID_TValGConvenioSys, 
+     VALOR_G_CONVENIO_SYS				AS ValorGConvenioSys, 
+     IMPORTE_G_CONVENIO_SYS				AS ImporteGConvenioSys, 
+     IMPORTE_G_CONVENIO_AUD				AS ImporteGConvenioAud,
+     If(IMPORTE_G_CONVENIO_AUD > 0 OR Not IsNull(IMPORTE_G_CONVENIO_AUD), IMPORTE_G_CONVENIO_AUD, IMPORTE_G_CONVENIO_SYS) 					AS ImporteGastoPres,	 
+     TVAL_CODIGO_H_PLAN_SYS				AS ID_TValHPlanSys, 
+     VALOR_H_PLAN_SYS					AS ValorHPlanSys, 
+     IMPORTE_H_PLAN_SYS					AS ImporteHPlanSys, 
+     IMPORTE_H_PLAN_AUD					AS ImporteHPlanAud, 
+     TVAL_CODIGO_G_PLAN_SYS				AS ID_TValGPlanSys, 
+     VALOR_G_PLAN_SYS					AS ValorGPlanSys, 
+     IMPORTE_G_PLAN_SYS					AS ImporteGPlanSys, 
+     IMPORTE_G_PLAN_AUD					AS ImporteGPlanAud, 
+     TIPO_CARGO_AL_SOCIO_SYS			AS TipoCargoSocioSys, 
+     TIPO_CARGO_AL_SOCIO_AUD			AS TipoCargoSocioAud, 
+     IMPORTE_CARGO_AL_SOCIO_SYS			AS ImporteCargoSocioSys, 
+     IMPORTE_CARGO_AL_SOCIO_AUD			AS ImporteCargoSocioAud, 
+     If(IMPORTE_CARGO_AL_SOCIO_AUD > 0 OR Not IsNull(IMPORTE_CARGO_AL_SOCIO_AUD), IMPORTE_CARGO_AL_SOCIO_AUD, IMPORTE_CARGO_AL_SOCIO_SYS) 	AS ImporteCargoSocio,
+     IMPORTE_H_REINTEGRO_SYS			AS ImporteHReintegroSys, 
+     IMPORTE_H_REINTEGRO_AUD			AS ImporteHReintegroAud, 
+     If(IMPORTE_H_REINTEGRO_AUD > 0 OR Not IsNull(IMPORTE_H_REINTEGRO_AUD), IMPORTE_H_REINTEGRO_AUD, IMPORTE_H_REINTEGRO_SYS) 				AS ImporteHonorarioReintegro,
+     IMPORTE_G_REINTEGRO_SYS			AS ImporteGReintegroSys, 
+     IMPORTE_G_REINTEGRO_AUD			AS ImporteGReintegroAud, 
+     If(IMPORTE_G_REINTEGRO_AUD > 0 OR Not IsNull(IMPORTE_G_REINTEGRO_AUD), IMPORTE_G_REINTEGRO_AUD, IMPORTE_G_REINTEGRO_SYS)				AS ImporteGastoReintegro,
+     VDA_DRV_ESTADO_AUDITORIA			AS ID_EstadoAuditoria, 
+     VDA_DRV_ESTADO_VAL_AFI				AS ID_EstadoValAfi, 
+     VDA_DRV_ESTADO_VAL_PRES			AS ID_EstadoValPres, 
+//     DBMC_DBMC_ID						AS ID_DbmcDbmc, 
+//     DBE_DBE_ID							AS ID_DbeDbe, 
+//     CAPC_CAPC_ID						AS ID_CapcCapc, 
+//     LVNOM_CODIGO_PLAN					AS ID_PlanLVNom, 
+//     GRPRES_RPRES_CODIGO_PRESCRIP, 
+//     GRPRES_CODIGO_PRESCRIP, 
+//     GRPRES_RPRES_CODIGO, 
+//     GRPRES_CODIGO, 
+     TCC_CODIGO							AS ID_TipoClausulaCob, 
+     PAGA_CONCEPTOS_SEPARADOS			AS PagaConceptosSeparados, 
+     PRESTACION_COMPLETA				AS PrestacionCompleta, 
+     CM_CIRUGIA_MULTIPLE				AS CM_CirugaMultiple, 
+     CM_PESO							AS CM_Peso, 
+     CM_COEFICIENTE_HONORARIOS			AS CM_CoeficienteHonorarios, 
+     CM_COEFICIENTE_GASTOS				AS CM_CoeficienteGastos, 
+     CM_APLICA_AFILIADO					AS CM_AplicaAfiliado, 
+     PROX_NIVEL_DE_AUDITORIA			AS ProxNivelAuditoria, 
+     USR_USERNAME						AS Nom_Usuario, 
+     FCION_CODIGO						AS ID_Funcion, 
+     USR_USERNAME_TOMADO_POR			AS Nom_UsuarioTomadopor, 
+     LIQUIDADO							AS Liquidado, 
+     CONSUMO_INVALIDO					AS ConsumoInvalido, 
+     ANULADO							AS Anulado, 
+     OBSERVACIONES						AS Observaciones, 
+     ATRIBUTO_1							AS Nro_Orden, 
+     ATRIBUTO_2							AS Atributo_2, 
+     ATRIBUTO_3							AS Atributo_3, 
+     ATRIBUTO_4							AS Atributo_4, 
+     ATRIBUTO_5							AS Atributo_5, 
+     ATRIBUTO_6							AS Atributo_6, 
+     ATRIBUTO_7							AS Atributo_7, 
+     ATRIBUTO_8							AS Nro_Autorizacion, 
+     ATRIBUTO_9							AS Atributo_9, 
+     ATRIBUTO_10						AS Atributo_10, 
+     ATRIBUTO_11						AS Atributo_11, 
+     ATRIBUTO_12						AS Atributo_12, 
+     ATRIBUTO_13						AS Atributo_13, 
+     ATRIBUTO_14						AS Atributo_14, 
+     ATRIBUTO_15						AS Atributo_15, 
+     GRUPO_AFILIACIONES					AS GrupoAfiliaciones, 
+     GRUPO_AUTORIZPREV					AS GrupoAutorizPrev, 
+     GRUPO_CONTAB						AS GrupoContab, 
+     GRUPO_CONVPRES						AS GrupoConvPres, 
+     GRUPO_CTROLAUD						AS GrupoControlAud, 
+     GRUPO_EFECTORES					AS GrupoEfectores, 
+     GRUPO_ESTADISTICA					AS GrupoEstadistica, 
+     GRUPO_IMPUESTOS					AS GrupoImpuestos, 
+     GRUPO_LIQAFILIADOS					AS GrupoLiqAfiliados, 
+     GRUPO_LIQPRES						AS GrupoLiqPres, 
+     GRUPO_NORMASAUD					AS GrupoNormasAud, 
+     GRUPO_PLANCOB						AS GrupoPlanCob, 
+     GRUPO_PRESTADORES					AS %ID_GrupoPrestacion, 
+     GRUPO_REDPRES						AS GrupoRedPres, 
+     TIPO_PRESTACION					AS TipoPrestacion, 
+     IF(TIPO_PRESTACION = 'M', (CONS_PRES_EFE_CODIGO_LUGAR & '-' & CONS_SECUENCIA_LUGAR), NULL()) 	AS ID_Farmacia,
+     DESCRIPCION						AS Dsc_Prestacion, 
+     CONVPRES_CONVENIO					AS ConvenioPrestacion, 
+     PLAN_CODIGO						AS ID_PlanCobertura, 
+     VALOR_BASE							AS ValorBase, 
+     TVAL_CODIGO_H_REFERENCIA			AS ID_TValHReferencia, 
+     VALOR_H_REFERENCIA					AS ValorHReferencia, 
+     IMPORTE_H_REFERENCIA				AS ImporteHReferencia, 
+     TVAL_CODIGO_G_REFERENCIA			AS ID_TValGReferencia, 
+     VALOR_G_REFERENCIA					AS ValorGReferencia, 
+     IMPORTE_G_REFERENCIA				AS ImporteGReferencia, 
+     IMPORTE_CARGO_SOCIO_PRESENTADO		AS ImporteCargoSocioPresentado, 
+     REC_REC_ID							AS ID_Receta, 
+     VDA_DRV_COBRO_CARGO_AFILIADO		AS ID_CobroCargoAfiliado, 
+     SC_SC_ID							AS ID_ScSc, 
+     IMPORTE_H_CATEGORIZ_SYS			AS ImporteHCategorizSys, 
+     IMPORTE_G_CATEGORIZ_SYS			AS ImporteGCategorizSys, 
+     IMPORTE_H_CATEGORIZ_AUD			AS ImporteHCategorizAud, 
+     IMPORTE_G_CATEGORIZ_AUD			AS ImporteGCategorizAud, 
+     IMPORTE_PRESENTADO					AS ImportePresentado, 
+     CANT_AUTORIZADA					AS Ctd_Autorizada, 
+     LPRELP_LPRELP_ID					AS ID_LprelpLprelp, 
+     AI_CODIGO_CARGO_AFILIADO			AS ID_AiCargoAfiliado, 
+     CANTIDAD_SOLICITADA				AS Ctd_Solicitada, 
+     REFACTURACION						AS Refacturacion, 
+     PRESTACION_PRINCIPAL				AS PrestacionPrincipal, 
+     FASE_4								AS Fase_4
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_PRESTACIONES_CA.qvd] (qvd)
+WHERE ANULADO = 'F' AND PCA_TYPE = 'PCAC';
+     
+
+
+
+// Busco el Nombre y la Dsc. de los Estados de Auditoria.
+LEFT JOIN ($(vL.QVD_1))
+LOAD  
+	 DRV				AS ID_EstadoAuditoria, 
+     NOMBRE  			AS Nom_EstadoAuditoria,
+     DESCRIPCION		AS Dsc_EstadoAuditoria  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Estados ValAfi.
+LEFT JOIN ($(vL.QVD_1))
+LOAD  
+	 DRV				AS ID_EstadoValAfi, 
+     NOMBRE  			AS Nom_EstadoValAfi,
+     DESCRIPCION		AS Dsc_EstadoValAfi    
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Estados ValPres.
+LEFT JOIN ($(vL.QVD_1))
+LOAD  
+	 DRV				AS ID_EstadoValPres, 
+     NOMBRE  			AS Nom_EstadoValPres,
+     DESCRIPCION		AS Dsc_EstadoValPres  
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Busco el Nombre y la Dsc. de los Cobros Cargos Afiliados.
+LEFT JOIN ($(vL.QVD_1))
+LOAD  
+	 DRV				AS ID_CobroCargoAfiliado, 
+     NOMBRE  			AS Nom_CobroCargoAfiliado,
+     DESCRIPCION		AS Dsc_CobroCargoAfiliado
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_LIBRERIA_LIB_VALORES_DOMINIO_APP.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros2 = NoOfRows('$(vL.QVD_1)');
+LET vL.QCampos2 = NoOfFields('$(vL.QVD_1)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD_1) into [$(vG.TransformPath)\$(vL.QVD_1).qvd] (qvd);
+DROP Table $(vL.QVD_1);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QRegistros2)'									AS QRegistros_1,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.QCampos2)'									AS QCampos_1,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.QVD_1)'										AS QVD_1
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

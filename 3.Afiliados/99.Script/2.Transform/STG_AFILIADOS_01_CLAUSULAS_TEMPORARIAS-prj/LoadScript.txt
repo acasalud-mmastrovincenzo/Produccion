@@ -1,0 +1,72 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab STG_01_CLAUSULAS_TEMPORARIAS
+// DESARROLLADO POR: FBURLON - Fecha de Creación: 29/09/2017.
+// OBJETIVO: GENERAR QVD CON LOS DATOS COMPLETOS DE LAS CLÁUSULAS TEMPORARIAS.
+
+
+LET vL.QVD = 'STG_AFILIADOS_01_CLAUSULAS_TEMPORARIAS';
+
+
+// Levanto los datos de las Clausulas Temporarias.
+$(vL.QVD):
+LOAD 
+	 DATE(FECHA_VIGENCIA_HASTA,'DD/MM/YYYY')	as Fecha_Hasta, 
+     OBSERVACIONES								as Observaciones, 
+     DATE(FECHA_VIGENCIA_DESDE,'DD/MM/YYYY')	as Fecha_Desde, 
+     ACTA_ID									as ID_Clausula_Temp, 
+     PAT_PAT_ID									as ID_Patologia, 
+     TACTA_CODIGO								as Tipo_Asignacion, 
+     AFI_AFI_ID									as ID_Afiliado, 
+     TCC_CODIGO									as Tipo_Clausula, 
+     EM_EM_ID									as ID_EventoMedico
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_ASIGNACIONES_CLAUS_TEMP_AFI.qvd] (qvd);
+
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);   
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

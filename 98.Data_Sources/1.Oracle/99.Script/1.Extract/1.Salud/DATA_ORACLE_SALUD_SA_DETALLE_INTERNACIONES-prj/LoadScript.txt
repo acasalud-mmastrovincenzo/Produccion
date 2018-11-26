@@ -1,0 +1,122 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'SA_DETALLE_INTERNACIONES';
+LET vL.Base = 'SALUD';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+
+// Seteo el Tipo de Lectura.
+SET vL.TipoLectura = 'Barrido';
+
+
+$(vL.QVD):
+SQL 
+select distinct 'Internacion' as TipoEvento,
+       em.del_os_codigo casa,
+       --trunc(seg.fecha_registracion) fecha_registracion,
+       em.em_id evento,
+       em.vda_drv estado,
+       em.tem_codigo tipo_em,
+       em.fecha_inicio,
+       em.fecha_fin,
+       c_fec_reg_em(em.em_id) fecha_registracion,
+       em.diag_codigo,
+       dg.nombre diagnostico,
+       em.nom_prestacion,
+       afi.codigo cod_afiliado,
+       afi.afi_id afi_id,
+       afi.apellidos,
+       afi.nombres,
+       em.efe_codigo_lugar efector,
+       efe.nombre efector_nombre,
+       loc.localidad localidad,
+       prv.nombre provincia,
+       peri.periodo,
+       C_CANT_DIAS_EV_TENT(EM.EM_ID,peri.periodo) cant_dias_tent,
+       C_CANT_DIAS_EV_REAL(EM.EM_ID,peri.periodo) cant_dias_real,
+       C_CANT_DIAS_EV(EM.EM_ID,peri.periodo) cant_dias_efectivos,
+       em.observaciones,
+       em.feem_codigo,
+       em.tipo_fecha_fin,
+       em.atributo_usuario_10 suspendido
+from    sa_eventos_medicos em,
+        sa_afiliados afi,
+        sa_efectores efe,
+        sa_domicilios_efector dom,
+        sa_domiefe_td td,
+        sa_localidades loc,
+        sa_provincias prv,
+        sa_diagnosticos dg,
+        sa_tipos_em tip,
+        aca_periodos peri
+where   em.efe_codigo_lugar = efe.codigo
+and     (
+            (peri.periodo between trunc(fecha_inicio,'MONTH') and fecha_fin - 1) or 
+            (PERI.PERIODO BETWEEN fecha_fin -1 and  trunc(fecha_inicio,'MONTH')) 
+        )
+and     em.afi_afi_id = afi.afi_id
+and     em.diag_codigo = dg.codigo
+and     efe.codigo = dom.efe_codigo (+)
+and     dom.domiefe_id = td.DOMIefe_DOMIefe_ID (+)
+and     'COM' = td.td_codigo (+)
+and     dom.loc_loc_id = loc.loc_id (+)
+and     loc.pcia_codigo = PRV.codigo (+) 
+and     em.tem_codigo =tip.codigo
+and     tip.de_seguimiento = 'F'
+and     em.vda_drv <> 'EM-----N' 
+and     trunc( em.fecha_inicio ) between to_date('01/01/2009','dd/mm/yyyy') and to_date('31/12/2020','dd/mm/yyyy')
+--and     em.em_id = 256962
+--and     em.em_id = 45077
+order    by em.em_id,peri.periodo;
+
+// Seteo Variables.
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+// Guardo la Resultante.
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'$(vL.TipoLectura)'									AS TipoLectura
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

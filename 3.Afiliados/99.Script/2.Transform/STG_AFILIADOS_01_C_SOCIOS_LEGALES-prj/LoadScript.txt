@@ -1,0 +1,73 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_01_C_SOCIOS_LEGALES';
+
+$(vL.QVD):
+NoConcatenate
+LOAD 
+	 CODIGO							AS Nro_Afiliado, 
+     TICKET							AS ID_Solicitud_Legales, 
+     NOTA_ULT_AVISO					AS F_Nota_Ult_Aviso, 
+     COMP_PAGO_PREVERAZ				AS F_Comp_Pago_PreVeraz, 
+     EN_VERAZ						AS F_En_Veraz, 
+     COMP_PAGO_PREJUDICIAL			AS F_Comp_Pago_PreJudicial, 
+     EN_JUDICIALES					AS F_En_Judiciales, 
+     PAGO_DEUDA						AS F_Pago_Deuda, 
+     NOTA							AS Obs_Nota,
+     IMPORTE_ACTUAL					AS Importe_Actual, 
+     IMPORTE_ABONADO				AS Importe_Abonado, 
+//     FECHA_AUDITORIA,
+	 AFI_ID							AS %ID_Afiliado,
+	 REC_NOTA_VERAZ					AS F_Rec_Nota_Veraz,
+	 CARTA_DOCUMENTO				AS F_Carta_Documento,
+	 MOTIVO_CARTA_DOCUMENTO			AS Motivo_Carta_Documento
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SOCIOS_LEGALES.qvd]
+(qvd);
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

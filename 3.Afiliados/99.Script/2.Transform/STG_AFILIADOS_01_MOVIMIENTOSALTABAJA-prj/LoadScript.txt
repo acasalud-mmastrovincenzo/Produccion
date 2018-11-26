@@ -1,0 +1,100 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_01_MOVIMIENTOSALTABAJA';
+
+$(vL.QVD):
+NoConcatenate
+LOAD 
+	 AFI_ID &'|'& PERIODO 	AS ID_AfiliadoMes,
+	 MakeDate(Year(FECHA), month(FECHA), day(FECHA))	AS Fecha, 	 
+	 CASA					AS ID_Casa, 
+     ORGANIZADOR			AS OrganizadorCompleto,  
+     AGENCIA				AS ID_Agencia,  //Ver si no es una clave compuesta, 
+     TIPO_AGENCIA			AS ID_TipoAgencia, 
+     If (TIPO_AGENCIA <> 'FIL' AND CANAL='COMERCIAL', 'Si', 'No') 	AS Referido,
+     EMPRESA				AS ID_Empresa, 
+     CODIGO					AS NroAfiliado, 
+     AFI_ID					AS ID_Afiliado, 
+     MOV					AS TipoMovimiento, 
+     if(MOV = 'ALTA', 'A', 
+     	if(MOV = 'BAJA', 'B', 'M'))	AS ID_TipoMovimiento,
+     SOLAFI_ID				AS ID_SolicitudAfiliado, 
+     AFILIADO				AS Afiliado, 
+     TIPO					AS ID_Tipo, //Tipo de que?, 
+     SEGMENTO				AS ID_Segmento,
+     if(SEGMENTO='DTCAP','N/A',if(SEGMENTO like 'OBL*','OBL','VOL')) 	AS SegmentoPresupuesto, 
+     MakeDate(Year(FEC_ALTA), month(FEC_ALTA), day(FEC_ALTA))			AS FechaAlta, 
+     Class(Age(FECHA, FEC_ALTA), 3)										AS RangoAntiguedadTransaccion,
+     MakeDate(Year(FEC_NAC), month(FEC_NAC), day(FEC_NAC))				AS FechaNacimiento,  //Sacar del maestro de Afiliados
+     EDAD					AS Edad, //Sacar del maestro de Afiliados
+     SEXO					AS Sexo, //Sacar del maestro de Afiliados
+     PLAN					AS ID_Plan, 
+     DOMICILIO				AS Domicilio, 
+     CODPOST				AS CodigoPostal, 
+     CODIGO_POSTAL			AS CodigoPostalAmpliado, 
+     LOCALIDAD				AS Localidad, 
+     PROVINCIA				AS Provincia, 
+     PERIODO				AS Periodo, 
+     PROMOTOR				AS ID_Promotor, 
+     if(mid(TRIM(PROMOTOR),3,1) follows '9' or mid(TRIM(PROMOTOR),3,1) precedes '0', 
+     	if(IsNull(PROMOTOR),'En Blanco', 
+     		if(PROMOTOR='USUARIO','Usuario', 'Promotor')),'Agencia')	AS Canal, 
+
+     MOTIVO_BAJA			AS MotivoBaja, 
+     ORG					AS ID_Organizador, 
+     ZONA					AS ID_Zona,
+     PLAN_ANT				AS ID_PlanAnterior, 
+     CANAL					AS CanalOriginal
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_MOV_ALTABAJA.qvd] (qvd);
+
+
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

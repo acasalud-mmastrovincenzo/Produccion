@@ -1,0 +1,945 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab 1.c_bajas_report
+/*******************************************************************
+Descripción de c_bajas_report:
+	Recolección de afiliados que se han dado de baja en algún 
+	momento y cuyo estado actual es Baja
+*******************************************************************/
+
+LET vL.QVD = 'STG_AFILIADOS_01_DEUDASOCIOS_BAJA';
+
+NoConcatenate
+c_bajas_report_temp:
+LOAD
+	 SOLAFI_ID,
+	 FECHA_VIGENCIA,
+	 VDA_DRV,
+	 TIPOSA_CODIGO,
+	 MOTSOL_CODIGO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_SOLICITUDES_AFILIADOS.qvd] (qvd);
+
+NoConcatenate
+c_bajas_report:
+LOAD
+	 SOLAFI_ID,
+	 FECHA_VIGENCIA
+Resident c_bajas_report_temp
+WHERE 
+	VDA_DRV = '05-----T'
+	and TIPOSA_CODIGO= 'BAJA'
+	and not match(MOTSOL_CODIGO, '6')
+//	and FECHA_VIGENCIA >= date#(20180501,'YYYYMMDD') 
+//	and Floor(FECHA_VIGENCIA) <= date#(20180630,'YYYYMMDD')   			
+	;
+	
+DROP Table c_bajas_report_temp;
+
+Inner Join(c_bajas_report)
+LOAD
+	SOLAFI_SOLAFI_ID			as SOLAFI_ID,
+	AFI_AFI_ID					as AFI_ID
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_DETALLES_SOLAFI.qvd] (qvd)
+WHERE DETSA_TYPE = 'DSATIT';
+
+
+Inner Join(c_bajas_report)
+LOAD
+	AFI_ID,
+	CODIGO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd] (qvd)
+WHERE ESTADO = 'B';
+
+RENAME Table c_bajas_report to c_bajas_report_temp;
+
+NoConcatenate
+c_bajas_report:
+LOAD 
+	CODIGO,
+//	SOLAFI_ID,
+//	FECHA_VIGENCIA,
+//	AFI_ID
+	max(SOLAFI_ID)					as SOLAFI_ID,
+	max(FECHA_VIGENCIA)				as FECHA_VIGENCIA,
+	max(AFI_ID)						as AFI_ID
+Resident c_bajas_report_temp
+Group By CODIGO
+;
+
+DROP TABLE c_bajas_report_temp;
+
+//Aparecen bajas y reingresos en el mismo mes en las solicitudes que no serían correctos considerarlos 
+//como baja. Utilizamos HBI para ver realmente si el afiliado estuvo de baja.
+NoConcatenate
+hbi:
+LOAD
+	MES,
+	AFI_ID,
+	MES&'|'&AFI_ID 	as AFIMES
+FROM
+[$(vG.OracleExtractPath)\DATA_ORACLE_HBI_HBI_EXT_AFI_MES.qvd] (qvd);
+
+RENAME Table c_bajas_report to c_bajas_report_temp;
+
+NoConcatenate
+c_bajas_report:
+LOAD
+	CODIGO, 
+    SOLAFI_ID, 
+    FECHA_VIGENCIA, 
+    AFI_ID
+Resident c_bajas_report_temp
+Where
+	not Exists(AFIMES,FECHA_VIGENCIA&'|'&AFI_ID);
+	
+DROP Field AFIMES;
+
+DROP Table c_bajas_report_temp;
+
+RENAME Table hbi to hbi_temp;
+
+NoConcatenate
+hbi:
+LOAD
+	MES,
+	AFI_ID
+Resident hbi_temp
+order by AFI_ID;
+
+DROP Table hbi_temp;
+
+Left Join(c_bajas_report)
+LOAD
+	MAX(MES) as MES,
+	AFI_ID
+Resident hbi
+Group By AFI_ID;
+
+DROP Table hbi;
+
+RENAME table c_bajas_report to c_bajas_report_temp;
+
+NoConcatenate
+c_bajas_report:
+LOAD
+	CODIGO, 
+    //SOLAFI_ID, 
+    FECHA_VIGENCIA, 
+    AFI_ID,
+    MES
+Resident c_bajas_report_temp
+Order by AFI_ID ASC,FECHA_VIGENCIA ASC;
+
+DROP Table c_bajas_report_temp;
+RENAME table c_bajas_report to c_bajas_report_temp;
+
+NoConcatenate
+c_bajas_report:
+LOAD Distinct
+	CODIGO, 
+    FECHA_VIGENCIA, 
+    AFI_ID,
+    MES,
+    0 as FLAG
+Resident c_bajas_report_temp;
+
+DROP Table c_bajas_report_temp;
+RENAME table c_bajas_report to c_bajas_report_temp;
+
+NoConcatenate
+c_bajas_report:
+LOAD
+	CODIGO, 
+    //SOLAFI_ID, 
+    FECHA_VIGENCIA, 
+    AFI_ID,
+    MES,
+	IF((FECHA_VIGENCIA > MES),IF((Peek(AFI_ID)=AFI_ID),Peek(FLAG)+1,1),0) AS FLAG
+Resident c_bajas_report_temp;
+
+DROP Table c_bajas_report_temp;
+RENAME Table c_bajas_report to c_bajas_report_temp;
+
+//Se quitan aquellas donde 
+NoConcatenate
+c_bajas_report:
+Load
+	CODIGO, 
+    FECHA_VIGENCIA, 
+    AFI_ID
+Resident c_bajas_report_temp
+Where FLAG <= 1;
+
+DROP Table c_bajas_report_temp;
+
+
+///$tab 2.c_comp_report
+/*******************************************************************
+Descripción de c_comp_report:
+	Selección de comprobantes de cuota pendiente de pago
+	para aquellos afiliados que al momento de darse la Baja
+	tenian deuda
+*******************************************************************/
+
+NoConcatenate
+c_comp_report:
+LOAD
+	DAT_NUMERO,
+	ENT_CODIGO,		
+	DAT_CPR_FECHA_EMISION,
+	DAT_MCA_ANULADO,
+	SUB_MOD_CODIGO,
+	TCP_CODIGO,
+	EMP_CODIGO,
+	MOV_TIPO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_DATOS.qvd] (qvd);
+
+RENAME Table c_comp_report to c_comp_report_temp;
+
+/*Se traen comprobantes que son gestionables por el CDC*/
+NoConcatenate
+c_comp_report:
+LOAD
+	DAT_NUMERO,
+	ENT_CODIGO,		
+	DAT_CPR_FECHA_EMISION
+Resident c_comp_report_temp
+WHERE 
+	DAT_MCA_ANULADO = 'N'
+	AND SUB_MOD_CODIGO = 'COB'
+	AND Match(TCP_CODIGO,'FA','FT','FC','ND')
+	AND EMP_CODIGO = 1
+	AND NOT Match(MOV_TIPO, 16,66,20,70,33,53);
+
+DROP Table c_comp_report_temp;
+
+Inner Join(c_comp_report)
+LOAD
+	CODIGO,
+	Mid(CODIGO, 1, len(CODIGO)-3)			as ENT_CODIGO,
+	FECHA_VIGENCIA
+Resident c_bajas_report;
+
+
+RENAME Table c_comp_report to c_comp_report_temp;
+
+/*Solo aquellos comprobantes emitidos antes de la fecha de baja*/
+NoConcatenate
+c_comp_report:
+LOAD
+	*
+Resident c_comp_report_temp
+Where DAT_CPR_FECHA_EMISION < FECHA_VIGENCIA;
+
+DROP Table c_comp_report_temp;
+
+NoConcatenate
+detalles:
+LOAD
+	DAT_NUMERO,
+	DET_IMPORTE_ORIG,
+	DET_FECHA_VENCIMIENTO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_DETALLES.qvd] (qvd);
+
+RENAME Table detalles to detalles_temp;
+
+NoConcatenate
+detalles:
+LOAD
+	DAT_NUMERO,
+	DET_IMPORTE_ORIG,
+	DET_FECHA_VENCIMIENTO
+Resident detalles_temp
+Order By DAT_NUMERO;
+
+DROP Table detalles_temp;
+
+/*Se agrega el detalle a cada comprobante*/
+Left Join(c_comp_report)
+LOAD
+	DAT_NUMERO,
+	DET_IMPORTE_ORIG
+Resident detalles;
+
+/*Se agrega el importe a cada comprobante*/
+Left Join(c_comp_report)
+LOAD
+	DAT_NUMERO,
+	SUM(DET_IMPORTE_ORIG)		AS IMP_ORG,
+	MIN(DET_FECHA_VENCIMIENTO)	AS DET_FECHA_VENCIMIENTO
+Resident detalles
+Group By DAT_NUMERO;
+
+DROP Table detalles;
+
+/*Se buscan aplicaciones que cancelan el importe del comprobante*/
+NoConcatenate
+aplicaciones:
+LOAD
+	DAT_NUMERO,
+	DAT_NUMERO_APL,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+From [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_APLICACIONES.qvd] (qvd);
+
+/*"Positivas" cancelan importe*/
+NoConcatenate
+aplicaciones_positivas:
+LOAD	
+	DAT_NUMERO 				as APL_DAT_NUMERO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+Resident aplicaciones;
+
+/*"Negativas" incrementan importe*/
+NoConcatenate
+aplicaciones_negativas:
+LOAD	
+	DAT_NUMERO_APL  			as APL_DAT_NUMERO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+Resident aplicaciones;
+
+DROP Table aplicaciones;
+
+NoConcatenate
+c_comp_report_agrup:
+LOAD
+	DAT_NUMERO,
+	FECHA_VIGENCIA,
+	IF(DET_IMPORTE_ORIG>0,1,0) as POSITIVO
+Resident c_comp_report;
+
+RENAME Table c_comp_report_agrup to c_comp_report_agrup_temp; 
+
+NoConcatenate
+c_comp_report_agrup:
+LOAD 
+	DAT_NUMERO,
+	POSITIVO,
+	MIN(FECHA_VIGENCIA) as FECHA_VIGENCIA
+Resident c_comp_report_agrup_temp
+Group By DAT_NUMERO,POSITIVO;
+
+DROP Table c_comp_report_agrup_temp;
+
+NoConcatenate
+aplicaciones_positivas_temp:
+LOAD
+	DAT_NUMERO as APL_DAT_NUMERO,
+	POSITIVO,
+	FECHA_VIGENCIA
+Resident c_comp_report_agrup
+Where POSITIVO = 1;
+
+Inner Join(aplicaciones_positivas_temp)
+LOAD
+	APL_DAT_NUMERO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+Resident aplicaciones_positivas;
+
+DROP Table aplicaciones_positivas;
+
+
+NoConcatenate
+aplicaciones_negativas_temp:
+LOAD
+	DAT_NUMERO 			as 	APL_DAT_NUMERO,
+	POSITIVO,
+	FECHA_VIGENCIA
+Resident c_comp_report_agrup
+Where POSITIVO = 0;
+
+DROP Table c_comp_report_agrup;
+
+Inner Join(aplicaciones_negativas_temp)
+LOAD
+	APL_DAT_NUMERO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+Resident aplicaciones_negativas;
+
+DROP TABLE aplicaciones_negativas;
+
+
+Concatenate(aplicaciones_positivas_temp)
+LOAD
+	*
+Resident aplicaciones_negativas_temp;
+
+DROP Table aplicaciones_negativas_temp;
+
+
+RENAME Table aplicaciones_positivas_temp to aplicaciones_temp;
+
+NoConcatenate
+aplicaciones:
+LOAD
+	APL_DAT_NUMERO,
+	POSITIVO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+resident aplicaciones_temp
+Where APL_FECHA_APLICACION <= FECHA_VIGENCIA;
+
+DROP Table aplicaciones_temp;
+
+RENAME Table aplicaciones to aplicaciones_temp;
+
+NoConcatenate
+aplicaciones:
+LOAD
+	APL_DAT_NUMERO,
+	POSITIVO,
+	APL_IMPORTE_APLICADO
+	//APL_FECHA_APLICACION
+resident aplicaciones_temp
+order by APL_DAT_NUMERO, POSITIVO;
+
+DROP Table aplicaciones_temp;
+RENAME Table aplicaciones to aplicaciones_temp;
+
+NoConcatenate
+aplicaciones:
+LOAD
+	APL_DAT_NUMERO,
+	POSITIVO,
+	SUM(APL_IMPORTE_APLICADO)		as  IMPORTE
+Resident aplicaciones_temp
+Group By APL_DAT_NUMERO, POSITIVO;
+
+
+DROP Table aplicaciones_temp;
+RENAME Table aplicaciones to aplicaciones_temp;
+
+NoConcatenate
+aplicaciones:
+LOAD
+	APL_DAT_NUMERO as DAT_NUMERO,
+	POSITIVO,
+	IF(POSITIVO=1,IMPORTE*-1,IMPORTE) as IMPORTE_APL
+Resident aplicaciones_temp;
+
+DROP Table aplicaciones_temp;
+
+left Join(c_comp_report)
+LOAD
+	DAT_NUMERO,
+	IMPORTE_APL
+Resident aplicaciones;
+
+DROP Table aplicaciones;
+
+
+RENAME Table c_comp_report to c_comp_report_temp;
+
+NoConcatenate
+c_comp_report:
+Load
+	CODIGO,
+	FECHA_VIGENCIA,
+	DAT_NUMERO,
+	DET_FECHA_VENCIMIENTO,
+	RangeSum(IMP_ORG,IMPORTE_APL) as DEUDA_PARCIAL
+Resident c_comp_report_temp
+Where RangeSum(IMP_ORG,IMPORTE_APL) > 0
+Order By CODIGO, FECHA_VIGENCIA, DAT_NUMERO
+;
+
+DROP Table c_comp_report_temp;
+RENAME Table c_comp_report to c_comp_report_temp;
+
+NoConcatenate
+c_comp_report:
+LOAD
+	CODIGO,
+	FECHA_VIGENCIA,
+	DAT_NUMERO,
+	Min(DET_FECHA_VENCIMIENTO)			as FECHA_VENCIMIENTO,
+	SUM(DEUDA_PARCIAL)					as DEUDA	
+Resident c_comp_report_temp
+Group By CODIGO, FECHA_VIGENCIA, DAT_NUMERO;
+
+DROP Table c_comp_report_temp;
+
+
+
+//RENAME Table c_comp_report to c_comp_report_temp;
+//c_comp_report:
+//LOAD
+//	CODIGO,
+//	FECHA_VIGENCIA,
+//	DAT_NUMERO,
+//	DET_FECHA_VENCIMIENTO
+//Resident c_comp_report_temp;
+//
+//Inner Join(c_comp_report)
+//LOAD
+//	APL_DAT_NUMERO			as DAT_NUMERO,
+//	APL_FECHA_APLICACION
+//resident aplicaciones_todo;
+//
+//Inner Join(c_comp_report)
+//LOAD
+//	CODIGO,
+//	FECHA_VIGENCIA,
+//	DEUDA
+//Resident deuda_a_la_baja;
+
+
+///$tab 3+4.c_gestion_report
+/*******************************************************************
+Descripción de c_gestion_report:
+	Selección de gestiones realizadas desde el CDC
+	para aquellos afiliados con deuda al momento de la baja
+*******************************************************************/
+
+NoConcatenate
+c_gestion_report:
+LOAD
+	DAT_NUMERO,
+	ID_TRANSACCION,
+	DET_CUOTA,
+	IMPORTE_INTERES,
+	PAGADO,
+	OPERADOR	
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SALDOS_COBRADOS_DETALLE.qvd] (qvd); 
+
+Inner Join(c_gestion_report)
+LOAD
+	DAT_NUMERO,
+	FECHA_VIGENCIA			as FECHA_VIGENCIA_COMP
+Resident c_comp_report;
+
+Inner Join(c_gestion_report)
+LOAD
+	ID_TRANSACCION,
+	Floor(FECHA_COBRO)		as FECHA_COBRO
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SALDOS_COBRADOS_ENC.qvd] (qvd);
+
+RENAME Table c_gestion_report to c_gestion_report_temp;
+
+NoConcatenate
+c_gestion_report:
+LOAD 
+	DAT_NUMERO,
+	DET_CUOTA,
+	ID_TRANSACCION,
+	IMPORTE_INTERES,
+	PAGADO,
+	OPERADOR	
+Resident c_gestion_report_temp
+where FECHA_COBRO >= FECHA_VIGENCIA_COMP;
+
+DROP Fields FECHA_COBRO, FECHA_VIGENCIA_COMP;		
+DROP table c_gestion_report_temp;
+
+NoConcatenate
+tbl1:
+LOAD
+	DAT_NUMERO
+Resident c_comp_report;
+
+Inner Join(tbl1)
+LOAD
+	DAT_NUMERO,
+	ID_TRANSACCION
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SALDOS_COBRADOS_DETALLE.qvd] (qvd);
+
+Inner Join(tbl1)
+LOAD
+	ID_TRANSACCION
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SALDOS_COBRADOS_ENC.qvd](qvd);
+
+RENAME Table tbl1 to tbl1_temp;
+
+NoConcatenate
+tbl1:
+LOAD
+	DAT_NUMERO,
+	max(ID_TRANSACCION) 		as ID_TRANSACCION
+Resident tbl1_temp
+Group By DAT_NUMERO;
+
+DROP Table tbl1_temp;
+
+Inner Join(c_gestion_report)
+LOAD
+	DAT_NUMERO,
+	ID_TRANSACCION
+Resident tbl1;
+
+drop table tbl1;
+
+///$tab 5.reporte
+/******************************************************************
+Descripción de reporte:
+	Calcula:
+		-saldo actual de cada comprobante de cuota de c_comp_report
+		-cobros e intereses gestionados por el CDC
+*******************************************************************/
+
+NoConcatenate
+$(vL.QVD):
+LOAD
+	CODIGO					as CODIGO_AFILIADO,
+	AFI_ID,
+	FECHA_VIGENCIA 			as FECHA_BAJA
+Resident c_bajas_report;
+
+
+Inner Join($(vL.QVD)) 
+LOAD
+	CODIGO					as CODIGO_AFILIADO,
+	DAT_NUMERO,
+	FECHA_VENCIMIENTO		as COMPROBANTE_VENCIMIENTO,
+	DEUDA
+Resident c_comp_report;
+
+
+NoConcatenate
+CTE_MOV_DET:
+LOAD	
+	DAT_NUMERO,
+	DET_IMPORTE_ORIG
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_DETALLES.qvd] (qvd);
+
+NoConcatenate
+CTE_MOV_DET_TEMP:
+LOAD
+	DAT_NUMERO,
+	DET_IMPORTE_ORIG
+Resident CTE_MOV_DET
+Order By DAT_NUMERO;
+
+DROP Table CTE_MOV_DET;
+
+Left Join($(vL.QVD))
+LOAD
+	DAT_NUMERO,
+	SUM(DET_IMPORTE_ORIG)		as IMP_ORG	
+Resident CTE_MOV_DET_TEMP
+Group By DAT_NUMERO;
+
+DROP Table CTE_MOV_DET_TEMP;
+
+Inner Join($(vL.QVD)) 
+LOAD
+	AFI_ID,
+	MOTIVO_DE_BAJA						as MOTIVO_BAJA,
+	APELLIDOS &' '& NOMBRES				as APELLIDO_NOMBRE,
+	AFILIACION				
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_SA_AFILIADOS.qvd] (qvd);
+
+Inner join($(vL.QVD)) 
+LOAD
+	DAT_NUMERO,
+	TCP_CODIGO  &' '& DAT_CPR_LETRA &' '& Mid(DAT_CPR_SUC_NUMERO, 1, 4)  &'-'& Mid(DAT_CPR_NUMERO, 1, 4) 							as COMPROBANTE_DEUDA,	
+	DAT_CPR_FECHA_EMISION																											as COMPROBANTE_FECHA,
+	DAT_OBSERVACIONES																												as COMPROBANTE_OBS
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_DATOS.qvd](qvd);
+
+Left join($(vL.QVD)) 
+LOAD
+	DAT_NUMERO,
+	ID_TRANSACCION,
+	OPERADOR						as OPERADOR_GESTION,
+	IMPORTE_INTERES					as INTERES_GESTION
+Resident c_gestion_report;
+
+
+Left Join($(vL.QVD))
+LOAD
+	ID_TRANSACCION,
+	Floor(FECHA_COBRO)				as FECHA_GESTION	
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_SALDOS_COBRADOS_ENC.qvd] (qvd);
+
+
+DROP Table c_bajas_report;
+DROP Table c_comp_report;
+DROP Table c_gestion_report;
+
+
+NoConcatenate
+CTE_MOV_APL:
+LOAD	
+	DAT_NUMERO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_APLICACIONES.qvd] (qvd);
+
+RENAME Table CTE_MOV_APL to CTE_MOV_APL_TEMP;
+
+NoConcatenate
+CTE_MOV_APL:
+LOAD	
+	DAT_NUMERO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+Resident CTE_MOV_APL_TEMP
+Where 
+	APL_FECHA_APLICACION <= Today();
+
+DROP Table CTE_MOV_APL_TEMP;
+RENAME Table CTE_MOV_APL to CTE_MOV_APL_TEMP;
+
+NoConcatenate
+CTE_MOV_APL:
+LOAD
+	DAT_NUMERO,
+	APL_IMPORTE_APLICADO
+Resident CTE_MOV_APL_TEMP
+Order By DAT_NUMERO;
+
+DROP Table CTE_MOV_APL_TEMP;
+
+
+Left Join($(vL.QVD))
+LOAD
+	DAT_NUMERO,
+	SUM(APL_IMPORTE_APLICADO)		as IMP_APL
+Resident CTE_MOV_APL
+Group By DAT_NUMERO;
+
+RENAME Table $(vL.QVD) to $(vL.QVD)_temp;
+
+DROP Table CTE_MOV_APL;
+
+NoConcatenate
+$(vL.QVD)_saldo_actual:
+LOAD
+	*,
+	RangeSum(IMP_ORG,-IMP_APL)			as SALDO_ACTUAL
+Resident $(vL.QVD)_temp;
+
+DROP Table $(vL.QVD)_temp;
+
+NoConcatenate
+$(vL.QVD):
+LOAD
+	FECHA_BAJA,
+	MOTIVO_BAJA,
+	CODIGO_AFILIADO,
+	AFI_ID,
+	APELLIDO_NOMBRE,
+	AFILIACION,
+	COMPROBANTE_DEUDA,
+	COMPROBANTE_FECHA,
+	COMPROBANTE_OBS,
+	COMPROBANTE_VENCIMIENTO,
+	DEUDA																																							as SALDO_BAJA,
+	SALDO_ACTUAL,
+	OPERADOR_GESTION,
+	FECHA_GESTION,
+	IF(isNull(OPERADOR_GESTION), 0, DEUDA)																															as IMPORTE_GESTION,
+	INTERES_GESTION,
+	IF(ISNULL(OPERADOR_GESTION), 0, IF(SALDO_ACTUAL = 0, DEUDA, 0))																									as COBRO_GESTION,
+	IF(IF(ISNULL(OPERADOR_GESTION), 0, IF(SALDO_ACTUAL=0, DEUDA, 0))= 0, 0, IF(ISNULL(OPERADOR_GESTION), 0, IF(SALDO_ACTUAL=0, DEUDA, 0)) + INTERES_GESTION)		as COBRO_TOTAL_GESTION 		
+Resident $(vL.QVD)_saldo_actual;
+
+RENAME Table $(vL.QVD) to $(vL.QVD)_temp;
+DROP table $(vL.QVD)_saldo_actual;
+
+NoConcatenate
+$(vL.QVD):
+LOAD 
+	CODIGO_AFILIADO& ' ' & COMPROBANTE_DEUDA				AS KEY,
+	*
+Resident $(vL.QVD)_temp;
+
+DROP Table $(vL.QVD)_temp;
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+
+DROP Table TIEMPO_RECARGA;
+
+EXIT Script;
+///$tab Main 11
+/*Eliminar*/
+NoConcatenate
+reporte:
+LOAD
+	ID_TRANSACCION, 
+	DAT_NUMERO, 
+	AFI_ID, 
+	CODIGO_AFILIADO, 
+	FECHA_BAJA, 
+	COMPROBANTE_VENCIMIENTO, 
+	DEUDA, 
+	IMP_ORG, 
+	MOTIVO_BAJA, 
+	APELLIDO_NOMBRE, 
+	AFILIACION, 
+	COMPROBANTE_DEUDA, 
+	COMPROBANTE_FECHA, 
+	COMPROBANTE_OBS, 
+	OPERADOR_GESTION, 
+	INTERES_GESTION, 
+	FECHA_GESTION
+From [..\QVD\reporte.qvd] (qvd);
+
+//Traigo la mìnima fecha de baja
+NoConcatenate
+minfecha:
+Load Min(FECHA_BAJA) as minbaja
+Resident reporte;
+
+LET vStartDate = Date(peek('minbaja'));
+LET vEndDate = '28/08/2018'; //MonthStart(Today());  
+
+NoConcatenate
+CTE_MOV_APL:
+LOAD	
+	DAT_NUMERO,
+	APL_IMPORTE_APLICADO,
+	APL_FECHA_APLICACION
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_GEMINIS_CTE_MOV_APLICACIONES.qvd] (qvd);
+
+
+
+NoConcatenate
+aplicaciones:
+LOAD
+	DAT_NUMERO,
+	MonthStart(APL_FECHA_APLICACION) as FECHA_APL,
+	APL_IMPORTE_APLICADO
+Resident CTE_MOV_APL
+Where	
+	Date(APL_FECHA_APLICACION,'DD/MM/YYYY') <= '$(vEndDate)';
+	
+DROP Table CTE_MOV_APL;
+RENAME Table aplicaciones to aplicaciones_temp;
+
+NoConcatenate
+aplicaciones:
+LOAD
+	DAT_NUMERO,
+	FECHA_APL,
+	APL_IMPORTE_APLICADO
+Resident aplicaciones_temp
+Order by DAT_NUMERO,FECHA_APL;
+
+DROP Table aplicaciones_temp;
+RENAME Table aplicaciones to aplicaciones_temp;
+
+NoConcatenate
+aplicaciones:
+LOAD
+	DAT_NUMERO,
+	FECHA_APL,
+	SUM(APL_IMPORTE_APLICADO) as IMP_APL
+Resident aplicaciones_temp
+Group by DAT_NUMERO,FECHA_APL;
+
+DROP Table aplicaciones_temp;
+
+Left Join(reporte)
+LOAD	
+	DAT_NUMERO,
+	FECHA_APL,
+	IMP_APL
+Resident aplicaciones;
+
+DROP Table aplicaciones;
+RENAME Table reporte to reporte_temp;
+
+NoConcatenate
+reporte:
+LOAD
+	*,
+	RangeSum(IMP_ORG,-IMP_APL)			as SALDO_ACTUAL
+Resident reporte_temp;
+
+DROP Table reporte_temp;
+RENAME Table reporte to reporte_temp;
+
+NoConcatenate
+reporte:
+LOAD
+	FECHA_APL,
+	IMP_APL,
+	FECHA_BAJA,
+	MOTIVO_BAJA,
+	CODIGO_AFILIADO,
+	APELLIDO_NOMBRE,
+	AFILIACION,
+	COMPROBANTE_DEUDA,
+	COMPROBANTE_FECHA,
+	COMPROBANTE_OBS,
+	COMPROBANTE_VENCIMIENTO,
+	DEUDA																																							as SALDO_BAJA,
+	SALDO_ACTUAL,
+	OPERADOR_GESTION,
+	FECHA_GESTION,
+	IF(isNull(OPERADOR_GESTION), 0, DEUDA)																															as IMPORTE_GESTION,
+	INTERES_GESTION,
+	IF(ISNULL(OPERADOR_GESTION), 0, IF(SALDO_ACTUAL = 0, DEUDA, 0))																									as COBRO_GESTION,
+	IF(IF(ISNULL(OPERADOR_GESTION), 0, IF(SALDO_ACTUAL=0, DEUDA, 0))= 0, 0, IF(ISNULL(OPERADOR_GESTION), 0, IF(SALDO_ACTUAL=0, DEUDA, 0)) + INTERES_GESTION)		as COBRO_TOTAL_GESTION 		
+Resident reporte_temp;
+
+DROP table reporte_temp;
+RENAME Table reporte to reporte_temp;
+
+NoConcatenate
+reporte:
+LOAD 
+	CODIGO_AFILIADO& ' ' & COMPROBANTE_DEUDA				AS KEY,
+	*
+Resident reporte_temp;
+
+DROP Table reporte_temp;
+
+
+LET v_QRegistros = NoOfRows('$(v_QVD)');
+LET v_QCampos = NoOfFields('$(v_QVD)');
+
+
+//STORE $(v_QVD) into [..\QVD\$(v_QVD).qvd] (qvd);
+//DROP Table $(v_QVD);
+
+
+EXIT Script;

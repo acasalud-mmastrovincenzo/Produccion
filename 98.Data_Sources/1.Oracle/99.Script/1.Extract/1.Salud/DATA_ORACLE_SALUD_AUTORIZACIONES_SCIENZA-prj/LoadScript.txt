@@ -1,0 +1,94 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Include=$(vG.LocalePath)\13.Arg.qvs);
+
+//ConnectionString para Oracle
+$(Include=$(vG.ConnStringPath)\Conexion_ACAPROD1_ESPEJO.conn);
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.Tabla = 'AUTORIZACIONES_SCIENZA';
+LET vL.Base = 'SALUD';
+LET vL.QVD = 'DATA_ORACLE_$(vL.Base)_$(vL.Tabla)';
+
+
+NoConcatenate
+$(vL.QVD)_tmp:
+SQL 
+select aut.pres_efe_codigo efector,
+	   aut.apr_id,
+       aut.fecha,
+       aut.afi_afi_id afi_id,
+       aut.diag_codigo,
+       aut.em_em_id evento,
+       aut.fecha_prescripcion,
+       ca.efe_codigo_prescriptor prescriptor,
+       ca.pca_pca_id,
+       ca.pca_id,
+       ca.tipo_prestacion,
+       ca.nom_prestacion_pdh prestacion0,
+       SUBSTR(ca.descripcion,1,40) descripcion,
+       ca.cantidad,
+       ca.em_em_id_ev_medico_seguimiento EventoSeguimiento,
+       (ca.importe_g_convenio_sys * ca.cantidad) importe_auto      
+from sa_autorizaciones_previas aut,
+     sa_prestaciones_ca ca
+where aut.pres_efe_codigo = 705934
+and   aut.vda_drv_estado = 'CA-----E'
+and   aut.apr_id = ca.apr_apr_id
+and   ca.anulado = 'F';
+
+
+NoConcatenate
+$(vL.QVD):
+LOAD
+	*,
+	if(SubField(PRESTACION0,'_',1)='SC',PRESTACION0,
+		if(len(PRESTACION0)>7,PRESTACION0,'M'&PRESTACION0))	as PRESTACION,
+	if(IsNull(PCA_PCA_ID),0,1)								as CONSUMIDO,
+	if(TIPO_PRESTACION='M','Medicamentos','Nomenclador')	as TipoPrest
+Resident $(vL.QVD)_tmp;
+
+
+DROP Table $(vL.QVD)_tmp;
+DROP Field PRESTACION0 From $(vL.QVD);
+DROP Field TIPO_PRESTACION From $(vL.QVD);
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into $(vG.ExtractPath)\$(vL.QVD).qvd (qvd);
+	//TEMPORARIAMENTE SE GUARDA EN ambos ambientes
+	STORE $(vL.QVD) into D:\Qlikview\PRD\DATA\ORACLE\QVD\$(vL.QVD).qvd (qvd);
+DROP Table $(vL.QVD);
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+NoConcatenate
+TIEMPO_EJECUCION:
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

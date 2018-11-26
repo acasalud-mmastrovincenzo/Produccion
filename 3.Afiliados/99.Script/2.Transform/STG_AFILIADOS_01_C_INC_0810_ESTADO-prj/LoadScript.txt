@@ -1,0 +1,72 @@
+﻿///$tab QDF
+// QDF need to be initiated using InitLink.qvs or 1.Init.qvs
+// Below ia a basic initiation, Include search for InitLink.qvs in container base folder
+// InitLink.qvs finds and links to 1.Init.qvs
+Let vL.InitLinkPath = Left(DocumentPath(), Index(DocumentPath(), '\99.Script'))& 'InitLink.qvs';
+$(Must_Include=$(vL.InitLinkPath));
+
+// Locale para Argentina
+$(Must_Include=$(vG.LocalePath)\13.Arg.qvs);
+
+
+//$(vG.OracleExtractPath)
+Call LCGV ('Oracle', 'ExtractPath');
+///$tab TIEMPOS RECARGA
+TIEMPO_RECARGA:
+NoConcatenate
+LOAD
+	Now()			as FechaHoraInicio,
+	OSUser()		AS Usuario
+AUTOGENERATE 1;
+///$tab TABLA
+LET vL.QVD = 'STG_AFILIADOS_01_C_INC_0810_ESTADO';
+
+$(vL.QVD):
+NoConcatenate
+LOAD 
+	 ID_INCIDENTE					AS ID_Solicitud, 
+     RESPONSABLE					AS Responsable_Solicitud, 
+     Date(FECHA,'DD/MM/YYYY')		AS Fecha_Solicitud, 
+     ESTADO							AS Estado_Solicitud, 
+     OBS							AS Obs_Solicitud, 
+     INFORME						AS Informe_Solicitud, 
+//     HORAS, 
+//     DIAS, 
+//     OCCUR, 
+//     NOTIFICA, 
+//     NOTIFICAR, 
+//     TIME_AUDIT, 
+     CONTACTADO						AS Flag_Contactado//, 
+//     USR_MODIF, 
+//     Date(FEC_MODIF,'DD/MM/YYYY')	AS Fecha_Modif_Solicitud
+FROM [$(vG.OracleExtractPath)\DATA_ORACLE_SALUD_C_INC_0810_ESTADO.qvd] (qvd);
+
+
+LET vL.QRegistros = NoOfRows('$(vL.QVD)');
+LET vL.QCampos = NoOfFields('$(vL.QVD)');
+
+
+STORE $(vL.QVD) into [$(vG.TransformPath)\$(vL.QVD).qvd] (qvd);
+DROP Table $(vL.QVD);
+
+///$tab DURACION
+Left Join (TIEMPO_RECARGA)
+
+LOAD
+	now() 			AS FechaHoraFin
+AUTOGENERATE 1;
+
+
+TIEMPO_EJECUCION:
+NoConcatenate
+LOAD
+	*,
+	time(FechaHoraFin-FechaHoraInicio,'hh:mm:ss') 		AS Duracion,
+	'$(vL.QRegistros)'									AS QRegistros,
+	'$(vL.QCampos)'										AS QCampos,
+//	'$(vL.Tabla)'										AS Tabla,
+	'$(vL.QVD)'											AS QVD,
+	'PRD'												AS Entorno
+RESIDENT TIEMPO_RECARGA;
+
+DROP Table TIEMPO_RECARGA;

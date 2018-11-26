@@ -1,0 +1,7 @@
+SA:
+LOAD 
+     *
+FROM
+[D:\QLIKVIEW\PRD\ADG_FILES\Estructura Seguridad QV.xlsx]
+(ooxml, embedded labels, table is Security);
+

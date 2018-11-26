@@ -1,0 +1,12 @@
+ContainerPathName,ContainerFolderName,ContainerComments,RootPath
+Admin,0.Administration,Contenedor para administración del ambiente,
+Afiliados,3.Afiliados,Contenedor para aplicaciones exclusivas de análisis de afiliados,
+API,98.Data_Sources\4.API,"Contenedor de datos provenientes de APIs como Google Drive, Facebook, etc",
+Comercial,4.Comercial,Contenedor para aplicaciones exclusivas de análisis comercial,
+MySQL,98.Data_Sources\2.MySQL,Contenedor de datos provenientes de bases de datos MySQL,
+Negocio,1.Negocio,Contenedor para aplicaciones que integran más de una mirada,
+Oracle,98.Data_Sources\1.Oracle,Contenedor de datos proveniente de bases de datos Oracle,
+Prestadores,2.Prestadores,Contenedor para aplicaciones exclusivas de análisis de prestadores,
+Shared,99.Shared_Folders,Contenedor para datos públicos y compartidos entre más de un contenedor,
+Soporte,5.Soporte,Contenedor para aplicaciones exclusivas de análisis de actividades de soporte,
+SQLServer,98.Data_Sources\3.SQL_Server,Contenedor de datos provenientes de base de datos SQL Server,
